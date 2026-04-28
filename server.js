@@ -28,6 +28,7 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Nginx)
 // Relaxed Helmet for HTTP/IP usage
 app.use(helmet({
   contentSecurityPolicy: {
