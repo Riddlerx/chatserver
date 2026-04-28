@@ -57,11 +57,6 @@ module.exports = (db) => {
     }
 
     const { username, password } = req.body;
-    console.log(`Login attempt for username: [${username}]`);
-
-    db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
-        console.log(`Total users in DB: ${row ? row.count : 'error'}`);
-    });
 
     db.get("SELECT * FROM banned_users WHERE username = ?", [username], (err, bannedUser) => {
         if (err) {

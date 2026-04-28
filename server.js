@@ -140,7 +140,6 @@ app.get('/', (req, res) => {
 server.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     // Initialize database if it doesn't exist (e.g., create tables)
-console.log(`Server listening on port ${port}`);
 });
 
 // --- Graceful Shutdown ---
