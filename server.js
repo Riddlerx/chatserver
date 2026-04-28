@@ -33,17 +33,18 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://yourdomain.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      scriptSrcAttr: ["'unsafe-inline'"], // Allow onclick handlers
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140", "https://cdn.jsdelivr.net"],
+      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140", "https://cdn.jsdelivr.net", "http://localhost:3000", "http://localhost"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
-      upgradeInsecureRequests: null, // Don't force HTTPS on an IP
+      upgradeInsecureRequests: null,
     },
   },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" }, // Fix the COOP error
-  hsts: false, // Disable HSTS for IP-based access
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  hsts: false,
 }));
 app.use(hpp());
 const server = http.createServer(app);

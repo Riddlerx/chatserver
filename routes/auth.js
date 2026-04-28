@@ -71,16 +71,22 @@ module.exports = (db) => {
           "SELECT username, password, role FROM users WHERE username = ?",
           [username],
           async (err, user) => {
-            if (err || !user) {
-              if (err) console.error("Login user lookup DB Error:", err.message);
+            if (err) {
+              console.error("Login user lookup DB Error:", err.message);
+              return res.status(500).json({ error: "Database error" });
+            }
+            if (!user) {
+              console.log(`Login failed: User "${username}" not found.`);
               return res.status(401).json({ error: "Invalid credentials" });
             }
 
             const valid = await bcrypt.compare(password, user.password);
             if (!valid) {
+              console.log(`Login failed: Incorrect password for user "${username}".`);
               return res.status(401).json({ error: "Invalid credentials" });
             }
 
+            console.log(`Login successful: "${username}"`);
             const token = jwt.sign(
               { username: user.username, role: user.role },
               process.env.JWT_SECRET,
