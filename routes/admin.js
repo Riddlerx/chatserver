@@ -58,13 +58,17 @@ module.exports = (db) => {
     }
 
     db.run(
-      "INSERT OR REPLACE INTO banned_users (username, reason, banned_at) VALUES (?, ?, ?)",
-      [username, reason, new Date().toISOString()],
+      "INSERT OR REPLACE INTO banned_users (username, banned_by, reason, timestamp) VALUES (?, ?, ?, ?)",
+      [username, req.user.username, reason, new Date().toISOString()],
       function(err) {
         if (err) {
           console.error("Admin Ban User DB Error:", err.message);
           return res.status(500).json({ error: "Failed to ban user." });
         }
+        db.run("INSERT INTO audit_log (admin_username, action, target_username, reason, timestamp) VALUES (?, ?, ?, ?, ?)",
+          [req.user.username, "ban", username, reason, new Date().toISOString()],
+          (err) => { if (err) console.error("Audit log error:", err.message); }
+        );
         res.json({ success: true, message: `User ${username} has been banned.` });
       }
     );
@@ -88,6 +92,10 @@ module.exports = (db) => {
       if (this.changes === 0) {
         return res.status(404).json({ error: "User not banned." });
       }
+      db.run("INSERT INTO audit_log (admin_username, action, target_username, reason, timestamp) VALUES (?, ?, ?, ?, ?)",
+        [req.user.username, "unban", username, "User unbanned", new Date().toISOString()],
+        (err) => { if (err) console.error("Audit log error:", err.message); }
+      );
       res.json({ success: true, message: `User ${username} has been unbanned.` });
     });
   });
@@ -115,6 +123,10 @@ module.exports = (db) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: "Admin access required." });
     const { username, reason } = req.body;
     if (!username) return res.status(400).json({ error: "Username required." });
+    db.run("INSERT INTO audit_log (admin_username, action, target_username, reason, timestamp) VALUES (?, ?, ?, ?, ?)",
+      [req.user.username, "kick", username, reason || "No reason provided", new Date().toISOString()],
+      (err) => { if (err) console.error("Audit log error:", err.message); }
+    );
     res.json({ success: true, message: `User ${username} kicked.` });
   });
 
@@ -123,8 +135,8 @@ module.exports = (db) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: "Admin access required." });
     const { username, reason } = req.body;
     if (!username || !reason) return res.status(400).json({ error: "Username and reason required." });
-    db.run("INSERT OR REPLACE INTO banned_users (username, reason, banned_at) VALUES (?, ?, ?)",
-      [username, reason, new Date().toISOString()],
+    db.run("INSERT OR REPLACE INTO banned_users (username, banned_by, reason, timestamp) VALUES (?, ?, ?, ?)",
+      [username, req.user.username, reason, new Date().toISOString()],
       function(err) {
         if (err) return res.status(500).json({ error: "Failed to ban user." });
         db.run("INSERT INTO audit_log (admin_username, action, target_username, reason, timestamp) VALUES (?, ?, ?, ?, ?)",

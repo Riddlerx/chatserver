@@ -48,6 +48,8 @@ db.serialize(() => {
           username TEXT NOT NULL,
           message TEXT NOT NULL,
           timestamp TEXT NOT NULL,
+          displayName TEXT,
+          profilePicture TEXT,
           link_preview TEXT,
           edited INTEGER DEFAULT 0,
           parent_message_id INTEGER,
@@ -58,6 +60,8 @@ db.serialize(() => {
 
   // Migration: Add missing columns to messages
   const messageColumns = [
+    { name: "displayName", type: "TEXT" },
+    { name: "profilePicture", type: "TEXT" },
     { name: "link_preview", type: "TEXT" },
     { name: "edited", type: "INTEGER DEFAULT 0" },
     { name: "parent_message_id", type: "INTEGER" },

@@ -89,7 +89,7 @@ module.exports = (io, db) => {
         rooms[room].set(socket.username, socket.status || 'online'); // Store current status
 
         // Fetch and send message history for the room
-        db.all("SELECT m.*, u.displayName, u.profilePicture FROM messages m JOIN users u ON m.username = u.username WHERE m.room = ? ORDER BY m.timestamp ASC", [room], (err, messages) => {
+        db.all("SELECT * FROM messages WHERE room = ? ORDER BY timestamp ASC", [room], (err, messages) => {
             if (err) {
                 console.error(`Error fetching messages for room ${room}:`, err.message);
                 return typeof callback === "function" && (typeof callback === "function" && callback({ success: false, message: "Error fetching messages." }));
@@ -104,7 +104,7 @@ module.exports = (io, db) => {
             socket.emit("messageHistory", history);
             
             // Fetch and send pinned messages
-            db.all("SELECT m.*, u.displayName, u.profilePicture FROM messages m JOIN users u ON m.username = u.username WHERE m.room = ? AND m.is_pinned = 1 ORDER BY m.timestamp DESC", [room], (err, pinned) => {
+            db.all("SELECT * FROM messages WHERE room = ? AND is_pinned = 1 ORDER BY timestamp DESC", [room], (err, pinned) => {
                 if (err) {
                   console.error(`Error fetching pinned messages for room ${room}:`, err.message);
                   return typeof callback === "function" && (typeof callback === "function" && callback({ success: false, message: "Error fetching pinned messages." }));
@@ -156,7 +156,18 @@ const messageRateLimiter = new RateLimiterMemory({
         if (isPrivate) throw new Error("Private/Local IP access forbidden.");
 
         const response = await axios.get(url, { timeout: 5000 });
-        // ... rest of preview logic
+        const html = response.data;
+        const root = parse(html);
+        const title = root.querySelector('title')?.text || root.querySelector('meta[property="og:title"]')?.getAttribute('content');
+        const description = root.querySelector('meta[name="description"]')?.getAttribute('content') || root.querySelector('meta[property="og:description"]')?.getAttribute('content');
+        const image = root.querySelector('meta[property="og:image"]')?.getAttribute('content');
+
+        return { title, description, image, url };
+      } catch (error) {
+        console.error("Link preview error:", error.message);
+        return null;
+      }
+    }
     
     // Function to clean up socket properties
     function cleanupSocket(socket) {
@@ -326,7 +337,7 @@ const messageRateLimiter = new RateLimiterMemory({
                 }
                 
                 // Fetch the pinned message to send its full details
-                db.get("SELECT m.*, u.displayName, u.profilePicture FROM messages m JOIN users u ON m.username = u.username WHERE m.id = ? AND m.room = ?", [messageId, roomId], (err, pinnedMessage) => {
+                db.get("SELECT * FROM messages WHERE id = ? AND room = ?", [messageId, roomId], (err, pinnedMessage) => {
                     if (err) {
                         console.error(`Error fetching pinned message ${messageId} for room ${roomId}:`, err.message);
                         // Continue to emit event even if fetching details failed, but log the error
