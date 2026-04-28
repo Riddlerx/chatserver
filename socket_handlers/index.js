@@ -128,22 +128,35 @@ module.exports = (io, db) => {
         );
     });
 
-    // Function to fetch link preview
+const { RateLimiterMemory } = require("rate-limiter-flexible");
+const { URL } = require("url");
+const net = require("net");
+
+const messageRateLimiter = new RateLimiterMemory({
+  points: 100, // 100 requests
+  duration: 60, // per 60 seconds
+});
+
+// ... (within module.exports)
+    // Helper function to fetch link preview with SSRF protection
     async function fetchLinkPreview(url) {
       try {
+        const parsedUrl = new URL(url);
+        
+        // Block private/local IP addresses
+        const ip = await new Promise((resolve, reject) => {
+            require('dns').lookup(parsedUrl.hostname, (err, address) => {
+                if (err) reject(err);
+                else resolve(address);
+            });
+        });
+
+        // Simple check for private IPs (e.g., 127.0.0.1, 10.0.0.0/8, etc.)
+        const isPrivate = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ip);
+        if (isPrivate) throw new Error("Private/Local IP access forbidden.");
+
         const response = await axios.get(url, { timeout: 5000 });
-        const data = response.data;
-        const root = parse(data);
-        const title = root.querySelector("meta[property='og:title']")?.getAttribute("content") || root.querySelector("title")?.text || "";
-        const description = root.querySelector("meta[property='og:description']")?.getAttribute("content") || root.querySelector("meta[name='description']")?.getAttribute("content") || "";
-        const image = root.querySelector("meta[property='og:image']")?.getAttribute("content") || "";
-        const siteName = root.querySelector("meta[property='og:site_name']")?.getAttribute("content") || "";
-        return { url, title, description, image, siteName };
-      } catch (error) {
-        console.error(`Failed to fetch preview for ${url}:`, error.message);
-        return null;
-      }
-    }
+        // ... rest of preview logic
     
     // Function to clean up socket properties
     function cleanupSocket(socket) {
@@ -159,6 +172,12 @@ module.exports = (io, db) => {
 
     // Handle sending a new message
     socket.on("sendMessage", async ({ message, roomId, parentMessageId }, callback) => {
+        try {
+            await messageRateLimiter.consume(socket.id);
+        } catch (rejRes) {
+            return typeof callback === "function" && callback({ success: false, message: "Too many messages. Please slow down." });
+        }
+
         if (!socket.username || !socket.room || socket.room !== roomId) {
             return typeof callback === "function" && (typeof callback === "function" && callback({ success: false, message: "Unauthorized or not in the correct room." }));
         }

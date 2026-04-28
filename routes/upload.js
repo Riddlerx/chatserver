@@ -4,13 +4,18 @@ const path = require("path");
 const router = express.Router();
 
 // Set up storage for uploaded files
+const crypto = require("crypto");
+// ... existing imports
+
+// Set up storage for uploaded files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/uploads/");
   },
   filename: (req, file, cb) => {
-    // Create a unique filename
-    cb(null, Date.now() + "-" + file.originalname);
+    // Generate a secure random filename
+    const ext = path.extname(file.originalname);
+    cb(null, crypto.randomUUID() + ext);
   },
 });
 

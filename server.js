@@ -19,6 +19,11 @@ const adminRoutes = require('./routes/admin');
 const uploadRoutes = require('./routes/upload'); // Assuming this exists for file uploads
 const socketService = require('./socket');
 
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL ERROR: JWT_SECRET is not defined.");
+  process.exit(1);
+}
+
 dotenv.config();
 
 const app = express();
