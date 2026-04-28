@@ -68,7 +68,7 @@ const connectionRateLimiter = rateLimit({
 module.exports = (server, db, rooms, activeSessions, generateUserColor) => {
   const io = new Server(server, {
       cors: {
-          origin: process.env.ALLOWED_ORIGIN || "https://yourdomain.com",
+          origin: ["http://localhost:3000", "http://localhost", "http://168.138.212.140"],
           methods: ["GET", "POST"]
       },
   });

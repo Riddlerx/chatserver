@@ -36,7 +36,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://yourdomain.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140"],
+      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140", "https://cdn.jsdelivr.net"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: null, // Don't force HTTPS on an IP
@@ -55,12 +55,19 @@ const activeSessions = {}; // Stores active sessions: { username: socketId }
 
 // --- Middleware ---
 // CORS Configuration
-const allowedOrigins = ['http://localhost:3000', 'https://yourdomain.com']; // Replace with actual frontend domains
+const allowedOrigins = [
+  'http://localhost:3000', 
+  'http://localhost', 
+  'http://168.138.212.140'
+]; 
 const corsOptions = {
     origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl) 
+        // or if the origin is in our whitelist
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
+            console.error("Blocked by CORS:", origin);
             callback(new Error('Not allowed by CORS'));
         }
     },
