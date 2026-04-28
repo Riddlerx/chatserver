@@ -28,7 +28,23 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
-app.use(helmet());
+// Relaxed Helmet for HTTP/IP usage
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://yourdomain.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: null, // Don't force HTTPS on an IP
+    },
+  },
+  crossOriginOpenerPolicy: { policy: "unsafe-none" }, // Fix the COOP error
+  hsts: false, // Disable HSTS for IP-based access
+}));
 app.use(hpp());
 const server = http.createServer(app);
 const port = process.env.PORT || 3000;
