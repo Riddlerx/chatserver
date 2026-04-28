@@ -1,0 +1,16 @@
+# Ignore environment variables
+.env
+
+# Ignore node_modules
+node_modules
+
+# Ignore logs
+nohup.out
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Ignore database file
+chat.db
+\n# Ignore uploaded files\npublic/uploads
