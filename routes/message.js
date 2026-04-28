@@ -7,18 +7,26 @@ module.exports = (db) => {
   router.get("/search", [
       query('q').isString().trim().isLength({ min: 1 }).withMessage('Search query must be at least 1 character.'),
       query('room').isString().trim().isLength({ min: 1 }).withMessage('Room name is required.')
-  ], async (req, res) => {
+  ], (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    try {
-      res.status(501).json({ error: "Message search not implemented in this temporary config." });
-    } catch (error) {
-      console.error("Search error:", error);
-      res.status(500).json({ error: "Internal server error during search" });
-    }
+    const { q, room } = req.query;
+    const searchTerm = `%${q}%`;
+
+    db.all(
+        "SELECT * FROM messages WHERE room = ? AND message LIKE ? ORDER BY timestamp DESC LIMIT 50",
+        [room, searchTerm],
+        (err, rows) => {
+            if (err) {
+                console.error("Search error:", err);
+                return res.status(500).json({ error: "Internal server error during search" });
+            }
+            res.json(rows || []);
+        }
+    );
   });
 
   return router;

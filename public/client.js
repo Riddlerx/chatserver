@@ -124,7 +124,7 @@ function showModal({
 function openProfileModal() {
   profileModal.classList.add('visible');
   const token = localStorage.getItem('chatToken');
-  fetch(`/profile/${username}`, {
+  fetch(`/api/profile/${username}`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
@@ -151,7 +151,7 @@ async function saveProfile() {
     const formData = new FormData();
     formData.append('file', file);
     
-    const res = await fetch('/upload', {
+    const res = await fetch('/api/upload', {
       method: 'POST',
       body: formData,
     });
@@ -167,7 +167,7 @@ async function saveProfile() {
 
   const token = localStorage.getItem('chatToken');
   try {
-    const res = await fetch(`/profile/${username}`, {
+    const res = await fetch(`/api/profile/${username}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -212,7 +212,7 @@ async function loadUserBackground() {
     if (!username) return;
     try {
         const token = localStorage.getItem("chatToken");
-        const res = await fetch(`/profile/${username}`, {
+        const res = await fetch(`/api/profile/${username}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
@@ -327,7 +327,7 @@ function showAuthModal() {
     const pass = passwordInput.value.trim();
 
     try {
-      const res = await fetch("/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user, password: pass }),
@@ -384,7 +384,7 @@ async function deleteAccount() {
 
   try {
     const token = localStorage.getItem("chatToken");
-    const res = await fetch(`/user/${username}`, {
+    const res = await fetch(`/api/admin/user/${username}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -414,6 +414,7 @@ async function deleteAccount() {
     showModal({ title: "Error", body: "Error deleting account" });
   }
 }
+
 
 /* ---------- MESSAGE FUNCTIONS ---------- */
 
@@ -910,7 +911,7 @@ async function showUserProfileModal(targetUsername) {
   try {
     const token = localStorage.getItem("chatToken");
     const res = await fetch(
-      `/profile/${targetUsername}`,
+      `/api/profile/${targetUsername}`,
       token ? { headers: { Authorization: `Bearer ${token}` } } : {},
     );
     const data = await res.json();
@@ -951,7 +952,7 @@ async function showUserProfileModal(targetUsername) {
         const token = localStorage.getItem("chatToken");
         const headers = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch(`/profile/${username}`, {
+        const res = await fetch(`/api/profile/${username}`, {
           method: "POST",
           headers,
           body: JSON.stringify({ bio, status, background }),
@@ -969,6 +970,7 @@ async function showUserProfileModal(targetUsername) {
         showModal({ title: "Error", body: "Failed to update profile" });
       }
     };
+
 
     cancelBtn.onclick = () => {
       profileView.style.display = "block";
@@ -1434,7 +1436,7 @@ async function performSearch(query) {
 
   try {
     const token = localStorage.getItem("chatToken");
-    const res = await fetch(`/messages/search?q=${encodeURIComponent(query)}&room=${encodeURIComponent(currentRoom)}`, {
+    const res = await fetch(`/api/messages/search?q=${encodeURIComponent(query)}&room=${encodeURIComponent(currentRoom)}`, {
       headers: {
         "Authorization": `Bearer ${token}`
       }
@@ -1884,7 +1886,7 @@ fileInput.addEventListener("change", async () => {
   formData.append("file", file);
 
   try {
-    const res = await fetch("/upload", {
+    const res = await fetch("/api/upload", {
       method: "POST",
       body: formData,
     });
@@ -1982,6 +1984,12 @@ document.addEventListener("click", (e) => {
     if (user && user !== " " && user !== "") {
       showUserProfileModal(user);
     }
+  }
+});
+
+searchInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    performSearch(searchInput.value);
   }
 });
 
