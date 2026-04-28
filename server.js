@@ -38,7 +38,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"], // Allow onclick handlers
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140", "https://cdn.jsdelivr.net", "http://localhost:3000", "http://localhost"],
+      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140", "http://150.249.142.19", "https://150.249.142.19", "https://cdn.jsdelivr.net", "http://localhost:3000", "http://localhost"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: null,
@@ -60,7 +60,8 @@ const activeSessions = {}; // Stores active sessions: { username: socketId }
 const allowedOrigins = [
   'http://localhost:3000', 
   'http://localhost', 
-  'http://168.138.212.140'
+  'http://168.138.212.140',
+  'http://150.249.142.19'
 ]; 
 const corsOptions = {
     origin: function (origin, callback) {
@@ -105,7 +106,7 @@ app.use('/api', authMiddleware(process.env.JWT_SECRET)); // Apply auth middlewar
 app.use('/api/profile', profileRoutes(db));
 app.use('/api/messages', messageRoutes(db)); // Pass the router directly
 app.use('/api/admin', adminRoutes(db));
-app.use('/api/upload', uploadRoutes); // Assuming upload routes exist
+app.use('/api/upload', uploadRoutes); // Already configured to use internal logic
 
 // Catch-all for API routes not defined
 app.use('/api', (req, res) => {
