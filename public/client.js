@@ -227,6 +227,9 @@ async function loadUserBackground() {
 /* ---------- AUTH FUNCTIONS ---------- */
 
 function showAuthModal() {
+  // Reveal body to show the modal backdrop
+  document.body.style.visibility = "visible";
+  
   const modal = document.createElement("div");
   modal.id = "auth-modal";
   modal.style.cssText = `
@@ -308,6 +311,7 @@ function showAuthModal() {
         profileBtn.style.display = "block";
 
         document.body.removeChild(modal);
+        document.body.style.visibility = "visible";
         socket.auth = { token: data.token };
         socket.connect();
         socket.once("connect", () => {
@@ -1208,67 +1212,92 @@ async function adminKickUser(username) {
 
 function showAdminPanel() {
   if (userRole !== "admin") return;
+  if (document.getElementById("admin-modal")) return;
 
   const modal = document.createElement("div");
   modal.id = "admin-modal";
-  modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    `;
+  modal.className = "modal-backdrop";
 
   const content = document.createElement("div");
-  content.style.cssText = `
-        background: var(--panel);
-        padding: 30px;
-        border-radius: 10px;
-        width: 800px;
-        max-width: 90vw;
-        max-height: 80vh;
-        overflow-y: auto;
-    `;
+  content.className = "modal-content";
+  content.style.maxWidth = "800px";
+  content.style.width = "90%";
+  content.style.maxHeight = "80vh";
+  content.style.overflow = "hidden";
+  content.style.display = "flex";
+  content.style.flexDirection = "column";
 
   content.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 style="margin: 0; color: var(--text);">Admin Panel</h2>
-            <button id="close-admin" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer;">×</button>
+            <h2 class="modal-title" style="margin: 0;">Admin Panel</h2>
+            <button id="close-admin" style="background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">×</button>
         </div>
         
-        <div class="admin-tabs" style="display:flex; border-bottom: 1px solid var(--bg); margin-bottom: 20px;">
-            <button class="admin-tab-btn active" data-tab="users">User Management</button>
-            <button class="admin-tab-btn" data-tab="audit">Audit Log</button>
+        <div class="admin-tabs" style="display:flex; border-bottom: var(--glass-border); margin-bottom: 20px; gap: 15px;">
+            <button class="admin-tab-btn active" data-tab="users" style="padding: 10px 15px; background: none; border: none; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; font-weight: 600; font-size: 14px;">User Management</button>
+            <button class="admin-tab-btn" data-tab="audit" style="padding: 10px 15px; background: none; border: none; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; font-weight: 600; font-size: 14px;">Audit Log</button>
         </div>
 
-        <div id="admin-content" class="admin-tab-content" data-tab-content="users">
-            <h3 style="color: var(--text); margin-bottom: 15px;">User Management</h3>
-            <div id="user-list" style="margin-bottom: 30px;"></div>
-        </div>
-        <div id="audit-log-content" class="admin-tab-content" data-tab-content="audit" style="display:none;">
-            <h3 style="color: var(--text); margin-bottom: 15px;">Audit Log</h3>
-            <div id="audit-log-list"></div>
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+          <div id="admin-content" class="admin-tab-content" data-tab-content="users">
+              <h3 style="color: var(--text); margin-bottom: 15px; font-size: 1.1em;">User Management</h3>
+              <div id="user-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+          </div>
+          <div id="audit-log-content" class="admin-tab-content" data-tab-content="audit" style="display:none;">
+              <h3 style="color: var(--text); margin-bottom: 15px; font-size: 1.1em;">Audit Log</h3>
+              <div id="audit-log-list"></div>
+          </div>
         </div>
     `;
 
   modal.appendChild(content);
   document.body.appendChild(modal);
 
-  document.getElementById("close-admin").onclick = () =>
-    document.body.removeChild(modal);
+  // Use a slight timeout to ensure the "visible" class triggers the CSS transition
+  setTimeout(() => modal.classList.add("visible"), 10);
+
+  // Close function that can be called from multiple places
+  const handleClose = () => {
+    modal.classList.remove("visible");
+    setTimeout(() => {
+      if (modal && modal.parentNode) {
+        modal.remove();
+      }
+    }, 300); // Match CSS transition time
+  };
+
+  // Close functionality - Using content.querySelector for reliability within this specific modal instance
+  const closeBtn = content.querySelector("#close-admin");
+  if (closeBtn) {
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      handleClose();
+    };
+  }
+
+  // Close on backdrop click
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      handleClose();
+    }
+  };
   
   const tabButtons = content.querySelectorAll('.admin-tab-btn');
   const tabContents = content.querySelectorAll('.admin-tab-content');
 
   tabButtons.forEach(button => {
+    if (button.dataset.tab === 'users') button.style.color = 'var(--text)';
+    if (button.dataset.tab === 'users') button.style.borderBottomColor = 'var(--accent)';
+
     button.addEventListener('click', () => {
-        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabButtons.forEach(btn => {
+          btn.classList.remove('active');
+          btn.style.color = 'var(--muted)';
+          btn.style.borderBottomColor = 'transparent';
+        });
         button.classList.add('active');
+        button.style.color = 'var(--text)';
+        button.style.borderBottomColor = 'var(--accent)';
 
         const tab = button.dataset.tab;
         tabContents.forEach(content => {
@@ -1283,8 +1312,6 @@ function showAdminPanel() {
   });
 
   loadAdminUsers();
-      loadAuditLog();
-  loadAuditLog();
 }
 
 async function adminDeleteUser(targetUsername) {
@@ -2044,11 +2071,14 @@ searchInput.addEventListener("keydown", (e) => {
       // Wait for socket connection success before enabling UI
       socket.once("connect", () => {
         isLoggedIn = true;
-        // Show admin button only after successful socket auth
-        if (userRole === "admin" && adminBtn) {
-          adminBtn.style.display = "block";
+        document.body.style.visibility = "visible";
+        // Re-query buttons to ensure we have the correct DOM references
+        const currentAdminBtn = document.getElementById("admin-btn");
+        const currentProfileBtn = document.getElementById("profile-btn");
+        if (userRole === "admin" && currentAdminBtn) {
+          currentAdminBtn.style.display = "block";
         }
-        if (profileBtn) profileBtn.style.display = "block";
+        if (currentProfileBtn) currentProfileBtn.style.display = "block";
         socket.emit("joinRoom", { username, room: currentRoom });
         loadUserBackground();
       });
