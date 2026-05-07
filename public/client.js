@@ -1924,6 +1924,7 @@ socket.on("userList", (users) => {
     avatar.style.height = '20px';
     avatar.style.fontSize = '10px';
     avatar.style.marginRight = '5px';
+    avatar.style.cursor = 'pointer';
 
     if (profilePicture) {
       avatar.style.backgroundImage = `url('${profilePicture}')`;
@@ -1933,6 +1934,12 @@ socket.on("userList", (users) => {
       avatar.textContent = (displayName || user)[0].toUpperCase();
       avatar.style.backgroundColor = generateUserColor(user);
     }
+    
+    // Make avatar clickable
+    avatar.onclick = (e) => {
+      e.stopPropagation();
+      startDM(user);
+    };
     
     const name = document.createElement("span");
     name.textContent = displayName || user;
