@@ -573,6 +573,7 @@ function displayMessage(data) {
   usernameSpan.style.cursor = "pointer";
   usernameSpan.style.color = "var(--accent)";
   usernameSpan.textContent = data.displayName || data.username;
+  usernameSpan.dataset.username = data.username;
   metaDiv.appendChild(usernameSpan);
   metaDiv.appendChild(
     document.createTextNode(
@@ -1054,9 +1055,19 @@ async function showUserProfileModal(targetUsername) {
       return;
     }
 
-    document.getElementById("profile-username").textContent = data.username;
-    document.getElementById("profile-avatar").textContent =
-      data.username[0].toUpperCase();
+    document.getElementById("profile-username").textContent = data.displayName || data.username;
+    const profileAvatar = document.getElementById("profile-avatar");
+    if (data.profilePicture) {
+      profileAvatar.textContent = "";
+      profileAvatar.style.backgroundImage = `url("${data.profilePicture}")`;
+      profileAvatar.style.backgroundSize = "cover";
+      profileAvatar.style.backgroundPosition = "center";
+    } else {
+      profileAvatar.style.backgroundImage = "";
+      profileAvatar.style.backgroundSize = "";
+      profileAvatar.style.backgroundPosition = "";
+      profileAvatar.textContent = (data.displayName || data.username)[0].toUpperCase();
+    }
     document.getElementById("profile-role").textContent =
       data.role.charAt(0).toUpperCase() + data.role.slice(1);
     document.getElementById("profile-bio-display").textContent =
@@ -1903,6 +1914,7 @@ socket.on("userList", (users) => {
     
     const name = document.createElement("span");
     name.textContent = displayName || user;
+    name.dataset.username = user;
     name.onclick = () => startDM(user);
 
     li.appendChild(dot);
@@ -2150,7 +2162,7 @@ messages.addEventListener("click", (e) => {
   } else if (e.target.classList.contains("message-username")) {
     e.preventDefault();
     e.stopPropagation();
-    const targetUsername = e.target.textContent.trim();
+    const targetUsername = e.target.dataset.username || e.target.textContent.trim();
     showUserProfileModal(targetUsername);
   }
 });
@@ -2161,7 +2173,7 @@ document.addEventListener("click", (e) => {
     e.target.tagName === "SPAN" &&
     !e.target.classList.contains("status-dot")
   ) {
-    const user = e.target.textContent.trim();
+    const user = e.target.dataset.username || e.target.textContent.trim();
     if (user && user !== " " && user !== "") {
       showUserProfileModal(user);
     }
