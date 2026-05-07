@@ -22,8 +22,16 @@ npm run deploy
 ## Environment Variables
 Set these in Oracle Cloud:
 - `JWT_SECRET`: Your secret key for JWT tokens
+- `ALLOWED_ORIGINS`: (Optional) Comma-separated list of allowed origins
 - `DB_PATH`: (Optional) Path to your SQLite database file
 - `PORT`: (Optional) Server port (defaults to 3000)
+
+Example:
+```bash
+export JWT_SECRET="your-super-secret-jwt-key-here"
+export ALLOWED_ORIGINS="http://168.138.212.140:3000,http://168.138.212.140"
+export PORT=3000
+```
 
 ## Deployment Steps
 

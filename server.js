@@ -39,6 +39,10 @@ function parseAllowedOrigins(value) {
     return [
       'http://localhost:3000',
       'http://localhost',
+      'http://168.138.212.140:3000',
+      'http://168.138.212.140',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1',
     ];
   }
 
