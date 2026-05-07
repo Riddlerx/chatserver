@@ -45,6 +45,8 @@ const profileModal = document.getElementById("profile-modal");
 const displayNameInput = document.getElementById("displayName");
 const profilePictureInput = document.getElementById("profilePicture");
 const profilePictureUpload = document.getElementById("profile-picture-upload");
+const statusInput = document.getElementById("status-input");
+const bioInput = document.getElementById("bio-input");
 const themeToggle = document.getElementById("theme-toggle");
 const userListUl = document.getElementById("userList");
 const headerSpan = document.querySelector("#header span");
@@ -134,6 +136,8 @@ function openProfileModal() {
     if (data) {
       displayNameInput.value = data.displayName || data.username || '';
       profilePictureInput.value = data.profilePicture || '';
+      statusInput.value = data.status || '';
+      bioInput.value = data.bio || '';
     }
   });
 }
@@ -145,6 +149,8 @@ function closeProfileModal() {
 async function saveProfile() {
   const newDisplayName = displayNameInput.value;
   let newProfilePicture = profilePictureInput.value;
+  const newStatus = statusInput.value;
+  const newBio = bioInput.value;
 
   const file = profilePictureUpload.files[0];
   if (file) {
@@ -176,6 +182,8 @@ async function saveProfile() {
       body: JSON.stringify({
         displayName: newDisplayName,
         profilePicture: newProfilePicture,
+        status: newStatus,
+        bio: newBio
       })
     });
     const data = await res.json();
@@ -198,6 +206,106 @@ function generateUserColor(username) {
     }
     const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
     return "#" + "00000".substring(0, 6 - c.length) + c;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sanitizeRenderedHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const allowedTags = new Set([
+    "A",
+    "B",
+    "BLOCKQUOTE",
+    "BR",
+    "CODE",
+    "DEL",
+    "EM",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "HR",
+    "I",
+    "LI",
+    "OL",
+    "P",
+    "PRE",
+    "SPAN",
+    "STRONG",
+    "UL",
+  ]);
+
+  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
+  const nodes = [];
+  while (walker.nextNode()) {
+    nodes.push(walker.currentNode);
+  }
+
+  for (const node of nodes) {
+    if (!allowedTags.has(node.tagName)) {
+      node.replaceWith(document.createTextNode(node.textContent || ""));
+      continue;
+    }
+
+    for (const attr of Array.from(node.attributes)) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim();
+
+      if (node.tagName === "A" && name === "href") {
+        if (/^https?:\/\//i.test(value)) {
+          node.setAttribute("target", "_blank");
+          node.setAttribute("rel", "noopener noreferrer");
+        } else {
+          node.removeAttribute(attr.name);
+        }
+        continue;
+      }
+
+      if (node.tagName === "SPAN" && name === "class" && value === "mention-tag") {
+        continue;
+      }
+
+      node.removeAttribute(attr.name);
+    }
+  }
+
+  return template.innerHTML;
+}
+
+function renderMarkdownToHtml(message) {
+  const raw = typeof message === "string" ? message : String(message ?? "");
+  const rendered = typeof marked !== "undefined" ? marked.parse(raw) : escapeHtml(raw);
+  return sanitizeRenderedHtml(rendered);
+}
+
+function applyRenderedMessage(container, message) {
+  container.innerHTML = renderMarkdownToHtml(message);
+}
+
+function createSafeAvatarNode(profilePicture, fallbackName, fallbackColor) {
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+
+  if (profilePicture) {
+    avatar.style.backgroundImage = `url("${profilePicture}")`;
+    avatar.style.backgroundSize = "cover";
+  } else {
+    avatar.style.backgroundColor = fallbackColor;
+    avatar.textContent = fallbackName[0].toUpperCase();
+  }
+
+  return avatar;
 }
 
 function applyBackground(url) {
@@ -484,7 +592,7 @@ function displayMessage(data) {
     msgContentDiv.appendChild(img);
   } else {
     const mentionRegex = /@(\w+)/g;
-    let finalMessage = data.message;
+    let finalMessage = renderMarkdownToHtml(data.message);
     
     finalMessage = finalMessage.replace(mentionRegex, (match, mentionedUser) => {
         if (currentUsers.includes(mentionedUser)) {
@@ -496,7 +604,7 @@ function displayMessage(data) {
         return match;
     });
     
-    msgContentDiv.innerHTML = finalMessage;
+    msgContentDiv.innerHTML = sanitizeRenderedHtml(finalMessage);
   }
 
   bubble.appendChild(metaDiv);
@@ -528,14 +636,25 @@ function displayMessage(data) {
             border-radius: 4px;
         `;
 
-        let previewHTML = `<div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">${preview.title}</div>`;
+        const titleDiv = document.createElement("div");
+        titleDiv.style.cssText = "font-weight: bold; font-size: 14px; margin-bottom: 4px;";
+        titleDiv.textContent = preview.title || preview.url;
+        previewDiv.appendChild(titleDiv);
+
         if (preview.description) {
-            previewHTML += `<div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">${preview.description}</div>`;
+            const descriptionDiv = document.createElement("div");
+            descriptionDiv.style.cssText = "font-size: 12px; color: var(--muted); margin-bottom: 4px;";
+            descriptionDiv.textContent = preview.description;
+            previewDiv.appendChild(descriptionDiv);
         }
-        if (preview.image) {
-            previewHTML += `<img src="${preview.image}" style="max-width: 100%; border-radius: 4px; margin-top: 4px;">`;
+
+        if (preview.image && /^https?:\/\//i.test(preview.image)) {
+            const previewImage = document.createElement("img");
+            previewImage.src = preview.image;
+            previewImage.style.cssText = "max-width: 100%; border-radius: 4px; margin-top: 4px;";
+            previewDiv.appendChild(previewImage);
         }
-        previewDiv.innerHTML = previewHTML;
+
         bubble.appendChild(previewDiv);
     }
   }
@@ -598,7 +717,7 @@ async function editMessage(messageId) {
     confirmText: "Save",
   });
   if (newMsg && newMsg.trim() && newMsg.trim() !== currentMessage) {
-    socket.emit("editMessage", { messageId, newMessage: newMsg.trim() });
+    socket.emit("editMessage", { messageId, newMessage: newMsg.trim(), roomId: currentRoom });
   }
 }
 
@@ -610,7 +729,7 @@ async function deleteMessage(messageId) {
     confirmClass: "danger",
   });
   if (confirmed) {
-    socket.emit("deleteMessage", { messageId });
+    socket.emit("deleteMessage", { messageId, roomId: currentRoom });
   }
 }
 
@@ -711,22 +830,27 @@ function renderThreadView(parent_message_id, messages) {
         li.className = "message";
         li.id = `thread-msg-${msg.id}`;
 
-        let avatarHtml = '';
-        if (msg.profilePicture) {
-            avatarHtml = `<div class="avatar" style="background-image: url('${msg.profilePicture}'); background-size: cover;"></div>`;
-        } else {
-            avatarHtml = `<div class="avatar" style="background-color:${generateUserColor(msg.username)}">${(msg.displayName || msg.username)[0].toUpperCase()}</div>`;
-        }
+        const avatar = createSafeAvatarNode(
+            msg.profilePicture,
+            msg.displayName || msg.username,
+            generateUserColor(msg.username),
+        );
 
-        li.innerHTML = `
-                ${avatarHtml}
-                <div class="bubble">
-                    <div class="meta">
-                        <span class="message-username">${msg.displayName || msg.username}</span> • ${new Date(msg.timestamp).toLocaleTimeString()}
-                    </div>
-                    <div class="message-content">${msg.message}</div>
-                </div>
-            `;
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `${msg.displayName || msg.username} • ${new Date(msg.timestamp).toLocaleTimeString()}`;
+
+        const content = document.createElement("div");
+        content.className = "message-content";
+        applyRenderedMessage(content, msg.message);
+
+        bubble.appendChild(meta);
+        bubble.appendChild(content);
+        li.appendChild(avatar);
+        li.appendChild(bubble);
         threadMessages.appendChild(li);
     });
     threadMessages.scrollTop = threadMessages.scrollHeight;
@@ -735,7 +859,11 @@ function renderThreadView(parent_message_id, messages) {
 function sendThreadMessage() {
     const threadInput = document.getElementById("thread-input");
     if (!threadInput.value.trim()) return;
-    socket.emit('chat message', {msg: threadInput.value, parent_message_id: currentThreadId});
+    socket.emit('sendMessage', { 
+        message: threadInput.value, 
+        roomId: currentRoom, 
+        parentMessageId: currentThreadId 
+    });
     threadInput.value = '';
 }
 
@@ -1423,7 +1551,8 @@ function displayDMMessage(data) {
   fromDiv.appendChild(strong);
 
   const msgDiv = document.createElement("div");
-  msgDiv.textContent = data.message;
+  msgDiv.className = "message-content";
+  applyRenderedMessage(msgDiv, data.message);
 
   const timeDiv = document.createElement("div");
   timeDiv.style.fontSize = "11px";
@@ -1492,12 +1621,16 @@ function displaySearchResults(results) {
     div.style.background = "var(--bg)";
     div.style.borderRadius = "8px";
     
-    div.innerHTML = `
-      <div class="meta">
-        <strong>${msg.username}</strong> • ${new Date(msg.timestamp).toLocaleString()}
-      </div>
-      <div class="message-content">${msg.message}</div>
-    `;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${msg.username} • ${new Date(msg.timestamp).toLocaleString()}`;
+
+    const content = document.createElement("div");
+    content.className = "message-content";
+    applyRenderedMessage(content, msg.message);
+
+    div.appendChild(meta);
+    div.appendChild(content);
     searchResultsList.appendChild(div);
   });
 }
@@ -1505,11 +1638,11 @@ function displaySearchResults(results) {
 /* ---------- PIN FUNCTIONS ---------- */
 
 function pinMessage(messageId) {
-    socket.emit("pin message", { messageId });
+    socket.emit("pinMessage", { messageId, roomId: currentRoom });
 }
 
 function unpinMessage(messageId) {
-    socket.emit("unpin message", { messageId });
+    socket.emit("unpinMessage", { messageId, roomId: currentRoom });
 }
 
 function togglePinnedList() {
@@ -1525,13 +1658,29 @@ function updatePinnedUI(pinnedMessages) {
         pinnedMessages.forEach(msg => {
             const div = document.createElement("div");
             div.style.cssText = "padding: 10px; background: var(--bg); border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--accent);";
-            div.innerHTML = `
-                <div class="meta" style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${msg.username}</strong>
-                    ${userRole === "admin" ? `<button onclick="unpinMessage(${msg.id})" style="background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 11px;">Unpin</button>` : ""}
-                </div>
-                <div style="font-size: 13px; margin-top: 4px;">${msg.message}</div>
-            `;
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            meta.style.cssText = "display: flex; justify-content: space-between; align-items: center;";
+
+            const strong = document.createElement("strong");
+            strong.textContent = msg.username;
+            meta.appendChild(strong);
+
+            if (userRole === "admin") {
+                const unpinBtn = document.createElement("button");
+                unpinBtn.textContent = "Unpin";
+                unpinBtn.style.cssText = "background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 11px;";
+                unpinBtn.addEventListener("click", () => unpinMessage(msg.id));
+                meta.appendChild(unpinBtn);
+            }
+
+            const content = document.createElement("div");
+            content.className = "message-content";
+            content.style.cssText = "font-size: 13px; margin-top: 4px;";
+            applyRenderedMessage(content, msg.message);
+
+            div.appendChild(meta);
+            div.appendChild(content);
             pinnedMessagesContainer.appendChild(div);
         });
     } else {
@@ -1642,22 +1791,27 @@ socket.on('thread message', (data) => {
         li.className = "message";
         li.id = `thread-msg-${data.id}`;
 
-        let avatarHtml = '';
-        if (data.profilePicture) {
-            avatarHtml = `<div class="avatar" style="background-image: url('${data.profilePicture}'); background-size: cover;"></div>`;
-        } else {
-            avatarHtml = `<div class="avatar" style="background-color:${data.userColor}">${(data.displayName || data.username)[0].toUpperCase()}</div>`;
-        }
+        const avatar = createSafeAvatarNode(
+            data.profilePicture,
+            data.displayName || data.username,
+            data.userColor || generateUserColor(data.username),
+        );
 
-        li.innerHTML = `
-                ${avatarHtml}
-                <div class="bubble">
-                    <div class="meta">
-                        <span class="message-username">${data.displayName || data.username}</span> • ${new Date(data.timestamp).toLocaleTimeString()}
-                    </div>
-                    <div class="message-content">${data.message}</div>
-                </div>
-            `;
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `${data.displayName || data.username} • ${new Date(data.timestamp).toLocaleTimeString()}`;
+
+        const content = document.createElement("div");
+        content.className = "message-content";
+        applyRenderedMessage(content, data.message);
+
+        bubble.appendChild(meta);
+        bubble.appendChild(content);
+        li.appendChild(avatar);
+        li.appendChild(bubble);
         threadMessages.appendChild(li);
         threadMessages.scrollTop = threadMessages.scrollHeight;
     }
@@ -1828,7 +1982,7 @@ socket.on("message edited", ({ id, message, edited }) => {
   if (msgEl) {
     const content = msgEl.querySelector(".message-content");
     const meta = msgEl.querySelector(".meta");
-    if (content) content.textContent = message;
+    if (content) applyRenderedMessage(content, message);
     if (meta)
       meta.innerHTML = meta.innerHTML.replace(" (edited)", "") + " (edited)";
   }

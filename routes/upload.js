@@ -2,12 +2,16 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const crypto = require("crypto");
+const fs = require("fs");
 const router = express.Router();
+
+const uploadDirectory = path.join(__dirname, "..", "public", "uploads");
+fs.mkdirSync(uploadDirectory, { recursive: true });
 
 // Set up storage for uploaded files
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "public/uploads/");
+    cb(null, uploadDirectory);
   },
   filename: (req, file, cb) => {
     // Generate a secure random filename

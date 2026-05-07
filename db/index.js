@@ -143,10 +143,14 @@ db.serialize(() => {
   db.run("CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room)");
   db.run("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_message_id)");
 
-  // Insert a default "main" channel if it doesn't exist
+  // Insert default channels if they don't exist
   db.run(
     "INSERT OR IGNORE INTO custom_rooms (name, created_by, created_at) VALUES (?, ?, ?)",
     ["main", "system", new Date().toISOString()]
+  );
+  db.run(
+    "INSERT OR IGNORE INTO custom_rooms (name, created_by, created_at) VALUES (?, ?, ?)",
+    ["general", "system", new Date().toISOString()]
   );
 });
 

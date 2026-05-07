@@ -7,14 +7,18 @@ const { body, validationResult } = require('express-validator');
 
 
 const registerValidationRules = [
-  body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters long.'),
-  body('password').isLength({ min: 4 }).withMessage('Password must be at least 4 characters long.'),
-  body('displayName').optional().isLength({ min: 1 }).withMessage('Display name must be at least 1 character long.'),
+  body('username')
+    .trim()
+    .isLength({ min: 3, max: 30 })
+    .matches(/^[A-Za-z0-9_]+$/)
+    .withMessage('Username must be 3-30 characters and contain only letters, numbers, and underscores.'),
+  body('password').isLength({ min: 8, max: 128 }).withMessage('Password must be 8-128 characters long.'),
+  body('displayName').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Display name must be 1-50 characters long.'),
 ];
 
 const loginValidationRules = [
-  body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters long.'),
-  body('password').isLength({ min: 4 }).withMessage('Password must be at least 4 characters long.'),
+  body('username').trim().isLength({ min: 3, max: 30 }).withMessage('Username must be 3-30 characters long.'),
+  body('password').isLength({ min: 4, max: 128 }).withMessage('Password must be 4-128 characters long.'),
 ];
 
 module.exports = (db) => {
@@ -25,7 +29,9 @@ module.exports = (db) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { username, password, displayName } = req.body;
+    const username = req.body.username.trim();
+    const { password } = req.body;
+    const displayName = req.body.displayName ? req.body.displayName.trim() : undefined;
 
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -56,7 +62,8 @@ module.exports = (db) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { username, password } = req.body;
+    const username = req.body.username.trim();
+    const { password } = req.body;
 
     db.get("SELECT * FROM banned_users WHERE username = ?", [username], (err, bannedUser) => {
         if (err) {

@@ -2,6 +2,31 @@ const express = require("express");
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 
+function isSafeMediaUrl(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  if (value === "") {
+    return true;
+  }
+
+  if (/['"<>\s]/.test(value)) {
+    return false;
+  }
+
+  if (value.startsWith("/uploads/")) {
+    return true;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (err) {
+    return false;
+  }
+}
+
 module.exports = (db) => {
   // Endpoint to get user profile by username
   router.get("/:username", (req, res) => {
@@ -25,7 +50,11 @@ module.exports = (db) => {
 
   // Endpoint to update user profile
   router.post("/:username", 
-    body('displayName').optional().isLength({ min: 1 }).withMessage('Display name must be at least 1 character long.'),
+    body('displayName').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Display name must be 1-50 characters long.'),
+    body('bio').optional().trim().isLength({ max: 500 }).withMessage('Bio must be 500 characters or fewer.'),
+    body('status').optional().trim().isLength({ max: 120 }).withMessage('Status must be 120 characters or fewer.'),
+    body('profilePicture').optional().custom(isSafeMediaUrl).withMessage('Profile picture must be an http(s) URL or uploaded file path.'),
+    body('background').optional().custom(isSafeMediaUrl).withMessage('Background must be an http(s) URL or uploaded file path.'),
     (req, res) => {
     const { username } = req.params;
     const { displayName, profilePicture, bio, status, background } = req.body;

@@ -1,12 +1,9 @@
-const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const http = require('http');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
 const helmet = require('helmet');
 const hpp = require('hpp');
 
@@ -27,6 +24,29 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+function parseAllowedOrigins(value) {
+  if (!value) {
+    return [
+      'http://localhost:3000',
+      'http://localhost',
+    ];
+  }
+
+  return value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+const cspConnectSrc = Array.from(new Set([
+  "'self'",
+  "ws:",
+  "wss:",
+  "https://cdn.jsdelivr.net",
+  ...allowedOrigins,
+]));
+
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (Nginx)
 // Relaxed Helmet for HTTP/IP usage
@@ -38,7 +58,7 @@ app.use(helmet({
       scriptSrcAttr: ["'unsafe-inline'"], // Allow onclick handlers
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: ["'self'", "ws:", "wss:", "http://168.138.212.140", "https://168.138.212.140", "http://150.249.142.19", "https://150.249.142.19", "https://cdn.jsdelivr.net", "http://localhost:3000", "http://localhost"],
+      connectSrc: cspConnectSrc,
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: null,
@@ -57,17 +77,11 @@ const activeSessions = {}; // Stores active sessions: { username: socketId }
 
 // --- Middleware ---
 // CORS Configuration
-const allowedOrigins = [
-  'http://localhost:3000', 
-  'http://localhost', 
-  'http://168.138.212.140',
-  'http://150.249.142.19'
-]; 
 const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl) 
         // or if the origin is in our whitelist
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             console.error("Blocked by CORS:", origin);
@@ -102,7 +116,7 @@ app.use('/api', apiLimiter); // Apply to all routes under /api
 app.use('/api/auth', authRoutes(db));
 
 // Protected routes (require authentication)
-app.use('/api', authMiddleware(process.env.JWT_SECRET)); // Apply auth middleware to all subsequent routes
+app.use('/api', authMiddleware(db, process.env.JWT_SECRET)); // Apply auth middleware to all subsequent routes
 app.use('/api/profile', profileRoutes(db));
 app.use('/api/messages', messageRoutes(db)); // Pass the router directly
 app.use('/api/admin', adminRoutes(db));

@@ -1,8 +1,17 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const { generateUserColor } = require("../utils/colors");
 const rateLimit = require("express-rate-limit");
-const { body, param, validationResult } = require('express-validator');
+
+function parseAllowedOrigins(value) {
+  if (!value) {
+    return ["http://localhost:3000", "http://localhost"];
+  }
+
+  return value
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
 
 // Middleware for Socket.IO connection authentication
 const socketAuthMiddleware = (db, JWT_SECRET) => {
@@ -66,9 +75,10 @@ const connectionRateLimiter = rateLimit({
 
 
 module.exports = (server, db, rooms, activeSessions, generateUserColor) => {
+  const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
   const io = new Server(server, {
       cors: {
-          origin: ["http://localhost:3000", "http://localhost", "http://168.138.212.140", "http://150.249.142.19"],
+          origin: allowedOrigins,
           methods: ["GET", "POST"]
       },
   });

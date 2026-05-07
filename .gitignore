@@ -1,8 +1,10 @@
 # Ignore environment variables
 .env
+.env.local
+.env.*.local
 
 # Ignore node_modules
-node_modules
+node_modules/
 
 # Ignore logs
 nohup.out
@@ -11,6 +13,10 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Ignore database file
+# Ignore database files
 chat.db
-\n# Ignore uploaded files\npublic/uploads
+chat.db-shm
+chat.db-wal
+
+# Ignore uploaded files
+public/uploads/
