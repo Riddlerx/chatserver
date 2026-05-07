@@ -158,13 +158,13 @@ module.exports = (io, db, rooms = {}, activeSessions = {}, generateUserColor) =>
     console.log(`User connected: ${socket.id}`);
     activeSessions[socket.username] = socket.id;
     db.run(
-      "UPDATE users SET status = COALESCE(NULLIF(status, ''), 'online') WHERE username = ?",
+      "UPDATE users SET status = 'online' WHERE username = ?",
       [socket.username],
       (err) => {
         if (err) {
           console.error(`Failed to initialize status for ${socket.username}:`, err.message);
         } else {
-          socket.status = socket.status || "online";
+          socket.status = "online";
           broadcastUserList(io, db, activeSessions);
         }
       },
@@ -781,12 +781,16 @@ module.exports = (io, db, rooms = {}, activeSessions = {}, generateUserColor) =>
       if (!socket.room || !rooms[socket.room]) return;
       rooms[socket.room].set(socket.username, "typing");
       emitUsersInRoom(io, socket.room, db);
+      // Broadcast typing indicator to room
+      io.to(socket.room).emit("typing indicator", { username: socket.username, status: "typing" });
     });
 
     socket.on("stop typing", () => {
       if (!socket.room || !rooms[socket.room]) return;
       rooms[socket.room].set(socket.username, socket.status || "online");
       emitUsersInRoom(io, socket.room, db);
+      // Broadcast typing indicator to room
+      io.to(socket.room).emit("typing indicator", { username: socket.username, status: "online" });
     });
 
     socket.on("updateStatus", ({ status }, callback) => {

@@ -18,5 +18,8 @@
   },
   "scripts": {
     "start": "node server.js"
+  },
+  "devDependencies": {
+    "eslint": "^10.3.0"
   }
 }

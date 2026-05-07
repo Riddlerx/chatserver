@@ -102,6 +102,9 @@ app.use(express.urlencoded({ extended: true })); // For parsing application/x-ww
 // Public folder for static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Handle favicon.ico to prevent 404
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Rate Limiting for HTTP requests
 const apiLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000, // 15 minutes

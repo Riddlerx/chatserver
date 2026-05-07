@@ -32,6 +32,7 @@ const customRoomsList = document.getElementById("custom-rooms-list");
 const dmPanel = document.getElementById("dm-panel");
 const dmInput = document.getElementById("dm-input");
 const dmList = document.getElementById("dm-list");
+const roomsDiv = document.getElementById("rooms");
 const searchInput = document.getElementById("search-input");
 const searchModal = document.getElementById("search-modal");
 const searchResultsList = document.getElementById("search-results-list");
@@ -49,6 +50,7 @@ const statusInput = document.getElementById("status-input");
 const bioInput = document.getElementById("bio-input");
 const themeToggle = document.getElementById("theme-toggle");
 const userListUl = document.getElementById("userList");
+const userStatusSelect = document.getElementById("user-status-select");
 const headerSpan = document.querySelector("#header span");
 
 /* ---------- HELPER FUNCTIONS ---------- */
@@ -152,6 +154,12 @@ async function saveProfile() {
   const newStatus = statusInput.value;
   const newBio = bioInput.value;
 
+  const token = localStorage.getItem('chatToken');
+  if (!token) {
+    showModal({ title: "Not Logged In", body: "Please log in again before saving your profile." });
+    return;
+  }
+
   const file = profilePictureUpload.files[0];
   if (file) {
     const formData = new FormData();
@@ -159,6 +167,9 @@ async function saveProfile() {
     
     const res = await fetch('/api/upload', {
       method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
       body: formData,
     });
     
@@ -171,7 +182,6 @@ async function saveProfile() {
     }
   }
 
-  const token = localStorage.getItem('chatToken');
   try {
     const res = await fetch(`/api/profile/${username}`, {
       method: 'POST',
@@ -1205,7 +1215,7 @@ async function loadAdminUsers() {
       usernameDiv.textContent = user.username;
       
       const metaDiv = document.createElement("div");
-      metaDiv.style.color = "var(--text-secondary)";
+      metaDiv.style.color = "var(--muted)";
       metaDiv.style.fontSize = "12px";
       metaDiv.textContent = `Role: ${user.role} • Joined: ${new Date(user.created_at).toLocaleDateString()}`;
       
@@ -1216,7 +1226,7 @@ async function loadAdminUsers() {
 
       // Role select dropdown
       const select = document.createElement("select");
-      select.style.cssText = "padding: 5px; border: none; border-radius: 4px; background: var(--panel); color: var(--text); width: 120px; flex-shrink: 0;";
+      select.style.cssText = "padding: 5px; border: none; border-radius: 4px; background: var(--panel-bg); color: var(--text); width: 120px; flex-shrink: 0;";
       select.dataset.username = user.username;
       
       ["user", "moderator", "admin"].forEach(role => {
@@ -1494,6 +1504,10 @@ async function adminDeleteUser(targetUsername) {
 
 function toggleDMPanel() {
   dmPanel.classList.toggle("active");
+}
+
+function toggleRooms() {
+  roomsDiv.classList.toggle("mobile-visible");
 }
 
 async function sendDM() {
@@ -1840,13 +1854,17 @@ socket.on("custom rooms", (rooms) => {
     rooms.sort((a, b) => a.name.localeCompare(b.name));
     rooms.forEach(room => addRoomToList(room.name, room.isPrivate));
     
-    // Ensure 'general' is active by default if no other room is active
-    if (!document.querySelector('.room.active')) {
-        const generalRoomEl = document.querySelector('.room[data-room="general"]');
-        if (generalRoomEl) {
-            generalRoomEl.classList.add('active');
-        }
+  // Preserve the currently selected room when re-rendering the room list
+  const roomToActivate = currentRoom || 'general';
+  const activeRoomEl = document.querySelector(`.room[data-room="${roomToActivate}"]`);
+  if (activeRoomEl) {
+    activeRoomEl.classList.add('active');
+  } else {
+    const generalRoomEl = document.querySelector('.room[data-room="general"]');
+    if (generalRoomEl) {
+      generalRoomEl.classList.add('active');
     }
+  }
 });
 
 socket.on("new room", ({ name, isPrivate }) => {
@@ -1890,6 +1908,10 @@ socket.on("userList", (users) => {
   userListUl.innerHTML = "";
 
   users.forEach(({ username: user, displayName, profilePicture, status }) => {
+    // Update status selector if this is the current user
+    if (user === username && userStatusSelect) {
+      userStatusSelect.value = status || "online";
+    }
     const li = document.createElement("li");
     li.style.cursor = "pointer";
 
@@ -1969,8 +1991,8 @@ socket.on("userList", (users) => {
   });
 
   const typingUsers = users
-    .filter((u) => u.status === "typing" && u.user !== username)
-    .map((u) => u.user);
+    .filter((u) => u.status === "typing" && u.username !== username)
+    .map((u) => u.displayName || u.username);
 
   if (typingUsers.length > 0) {
     if (typingUsers.length === 1) {
@@ -1982,6 +2004,18 @@ socket.on("userList", (users) => {
     }
   } else {
     typingIndicator.textContent = "";
+  }
+});
+
+socket.on("typing indicator", ({ username: typingUser, status }) => {
+  if (typingUser !== username) {
+    if (status === "typing") {
+      typingIndicator.textContent = `${typingUser} is typing...`;
+      typingIndicator.style.display = "block";
+    } else {
+      typingIndicator.textContent = "";
+      typingIndicator.style.display = "none";
+    }
   }
 });
 
@@ -2222,6 +2256,29 @@ searchInput.addEventListener("keydown", (e) => {
     }
 })();
 
+// Status change functionality
+if (userStatusSelect) {
+  userStatusSelect.addEventListener("change", () => {
+    const newStatus = userStatusSelect.value;
+    
+    // Don't allow manual selection of "typing" status
+    if (newStatus === "typing") {
+      userStatusSelect.value = socket.status || "online";
+      return;
+    }
+    
+    socket.emit("updateStatus", { status: newStatus }, (response) => {
+      if (response && response.success) {
+        socket.status = newStatus;
+        console.log(`Status updated to: ${newStatus}`);
+      } else {
+        console.error("Failed to update status:", response ? response.message : "Unknown error");
+        userStatusSelect.value = socket.status || "online";
+      }
+    });
+  });
+}
+
 (function tryAutoLogin() {
   const token = localStorage.getItem("chatToken");
   if (!token) return showAuthModal();
@@ -2245,6 +2302,19 @@ searchInput.addEventListener("keydown", (e) => {
           currentAdminBtn.style.display = "block";
         }
         if (currentProfileBtn) currentProfileBtn.style.display = "block";
+        
+        // Set initial status selector value and force online status
+        if (userStatusSelect) {
+          userStatusSelect.value = "online";
+        }
+        
+        // Force status update to online
+        socket.emit("updateStatus", { status: "online" }, (response) => {
+          if (response && response.success) {
+            console.log("Status set to online");
+          }
+        });
+        
         socket.emit("joinRoom", { username, room: currentRoom });
         loadUserBackground();
       });
