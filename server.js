@@ -12,6 +12,15 @@ const helmet = require('helmet');
 const hpp = require('hpp');
 
 const db = require('./db/index'); // Assuming db/index.js sets up and exports the db connection
+
+// Auto-initialize database if needed (for cloud deployments)
+const fs = require('fs');
+const dbPath = process.env.DB_PATH || './chat.db';
+
+if (!fs.existsSync(dbPath)) {
+  console.log('Database not found, initializing...');
+  require('./scripts/init-db.js');
+}
 const authMiddleware = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
