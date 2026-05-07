@@ -79,6 +79,7 @@ app.use(helmet({
     },
   },
   crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  originAgentCluster: false, // Fix Origin-Agent-Cluster warning
   hsts: false,
 }));
 app.use(hpp());
