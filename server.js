@@ -2,6 +2,10 @@ const path = require('path');
 const express = require('express');
 const http = require('http');
 const dotenv = require('dotenv');
+
+// Load environment variables FIRST
+dotenv.config();
+
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -15,9 +19,6 @@ const messageRoutes = require('./routes/message'); // Import router directly
 const adminRoutes = require('./routes/admin');
 const uploadRoutes = require('./routes/upload'); // Assuming this exists for file uploads
 const socketService = require('./socket');
-
-// Load environment variables FIRST
-dotenv.config();
 
 if (!process.env.JWT_SECRET) {
   console.error("FATAL ERROR: JWT_SECRET is not defined.");

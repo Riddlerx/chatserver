@@ -2158,7 +2158,7 @@ messages.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     const messageId = parseInt(e.target.dataset.msgId);
-    adminDeleteMessage(messageId);
+    deleteMessage(messageId);
   } else if (e.target.classList.contains("message-username")) {
     e.preventDefault();
     e.stopPropagation();

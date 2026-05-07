@@ -6,52 +6,59 @@ const db = new sqlite3.Database("chat.db", (err) => {
     console.error("Error opening database", err.message);
   } else {
     console.log("Connected to the SQLite database.");
-    addMissingColumns();
+    runMigrations();
   }
 });
 
 const columnsToAdd = [
-  // ... (other columns)
   {
     table: "direct_messages",
     name: "new_dm_room",
     definition: "TEXT",
   },
-  // ... (other columns)
 ];
 
-function addMissingColumns() {
-  db.serialize(() => {
-    columnsToAdd.forEach(col_to_add => {
-      db.all(`PRAGMA table_info(${col_to_add.table})`, (err, columns) => {
-        if (err) {
-          console.error(`Error checking table info for ${col_to_add.table}:`, err.message);
-          return;
-        }
-        
-        const columnExists = columns.some(c => c.name === col_to_add.name);
-        
-        if (!columnExists) {
-          const { table, name, definition } = col_to_add;
-          const sql = `ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`;
-          db.run(sql, (err) => {
-            if (err) {
-              console.error(`Error adding column ${name} to ${table}:`, err.message);
-            } else {
-              console.log(`Column ${name} added to ${table} table.`);
-            }
-          });
-        }
-      });
+async function runMigrations() {
+  try {
+    for (const col of columnsToAdd) {
+      await addColumnIfNotExists(col);
+    }
+    console.log("Migrations completed.");
+  } catch (err) {
+    console.error("Migration failed:", err.message);
+  } finally {
+    db.close((err) => {
+      if (err) {
+        console.error("Error closing database", err.message);
+      } else {
+        console.log("Database connection closed.");
+      }
+    });
+  }
+}
+
+function addColumnIfNotExists(col) {
+  return new Promise((resolve, reject) => {
+    db.all(`PRAGMA table_info(${col.table})`, (err, columns) => {
+      if (err) {
+        return reject(new Error(`Error checking table info for ${col.table}: ${err.message}`));
+      }
+      
+      const columnExists = columns.some(c => c.name === col.name);
+      
+      if (!columnExists) {
+        const sql = `ALTER TABLE ${col.table} ADD COLUMN ${col.name} ${col.definition}`;
+        db.run(sql, (err) => {
+          if (err) {
+            reject(new Error(`Error adding column ${col.name} to ${col.table}: ${err.message}`));
+          } else {
+            console.log(`Column ${col.name} added to ${col.table} table.`);
+            resolve();
+          }
+        });
+      } else {
+        resolve();
+      }
     });
   });
 }
-    
-// Add this line to close the database connection
-db.close((err) => {
-  if (err) {
-    console.error("Error closing database", err.message);
-  } else {
-    console.log("Database connection closed.");
-  }
-});

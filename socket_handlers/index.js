@@ -123,7 +123,7 @@ async function fetchLinkPreview(url) {
     });
 
     const isPrivate =
-      /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(ip) ||
+      /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.)/.test(ip) ||
       ip === "::1";
     if (isPrivate) throw new Error("Private/Local IP access forbidden.");
 
@@ -151,7 +151,7 @@ async function fetchLinkPreview(url) {
   }
 }
 
-module.exports = (io, db, rooms = {}, activeSessions = {}) => {
+module.exports = (io, db, rooms = {}, activeSessions = {}, generateUserColor) => {
   roomsRef = rooms;
 
   io.of("/").on("connection", (socket) => {
@@ -343,7 +343,7 @@ module.exports = (io, db, rooms = {}, activeSessions = {}) => {
       const normalizedParentId = parentMessageId == null ? null : normalizePositiveInt(parentMessageId);
 
       try {
-        await messageRateLimiter.consume(socket.id);
+        await messageRateLimiter.consume(socket.username || socket.handshake.address);
       } catch (err) {
         return typeof callback === "function" && callback({ success: false, message: "Too many messages. Please slow down." });
       }

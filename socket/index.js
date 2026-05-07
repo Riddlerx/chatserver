@@ -1,6 +1,6 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const rateLimit = require("express-rate-limit");
+const { RateLimiterMemory } = require("rate-limiter-flexible");
 
 function parseAllowedOrigins(value) {
   if (!value) {
@@ -37,7 +37,7 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
           
           socket.username = user.username;
           socket.displayName = user.displayName || user.username;
-          socket.profilePicture = user.profilePicture || "/avatars/default.png"; // Default avatar
+          socket.profilePicture = user.profilePicture || null; // No default image path
           socket.role = user.role || "user";
           socket.status = user.status || "online"; // Default status
           
@@ -51,26 +51,10 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
   };
 };
 
-// Rate limiting for Socket.IO events
-const messageRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // Allow 100 messages per user per minute
-  message: "Too many messages sent, please try again later.",
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-
-const connectionRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // Allow 50 connection attempts per IP in 15 minutes
-    message: "Too many connection attempts, please try again later.",
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: (request) => {
-      // Ensure IP address is correctly parsed, especially for IPv6 and proxies
-      const ip = request.socket.remoteAddress;
-      return ip;
-    },// Rate limit by IP address
+// Rate limiting for Socket.IO connections
+const connectionRateLimiter = new RateLimiterMemory({
+    points: 50,
+    duration: 15 * 60, // 15 minutes
 });
 
 
@@ -84,8 +68,13 @@ module.exports = (server, db, rooms, activeSessions, generateUserColor) => {
   });
 
   // Apply connection rate limiter
-  io.engine.on("connection", (conn) => {
-      connectionRateLimiter(conn.request, {}, () => { /* Allow connection if rate limit not exceeded */ });
+  io.on("connection", async (socket) => {
+      try {
+          await connectionRateLimiter.consume(socket.handshake.address);
+      } catch (err) {
+          console.warn(`Connection rate limit exceeded for ${socket.handshake.address}`);
+          socket.disconnect(true);
+      }
   });
     
   // Apply Socket.IO authentication middleware
