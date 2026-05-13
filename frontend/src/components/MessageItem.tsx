@@ -113,14 +113,16 @@ const MessageItem = ({ message }: MessageItemProps) => {
             borderTopRightRadius: isSelf ? '4px' : '18px',
             background: isSelf ? 'var(--accent-gradient)' : 'var(--bubble-bg)',
             backdropFilter: !isSelf ? 'blur(5px)' : 'none',
-            border: !isSelf ? 'var(--glass-border)' : 'none',
+            border: !isSelf ? 'var(--glass-border)' : (message.status === 'error' ? '2px solid #ef4444' : 'none'),
             color: isSelf ? 'white' : 'var(--text)',
             fontSize: '14px',
             lineHeight: 1.5,
             wordBreak: 'break-word',
             boxShadow: 'var(--glass-shadow)',
             cursor: isImage ? 'zoom-in' : 'default',
-            position: 'relative'
+            position: 'relative',
+            opacity: message.status === 'sending' ? 0.7 : 1,
+            transition: 'opacity 0.2s, border 0.2s'
           }}
           onClick={() => isImage && setIsLightboxOpen(true)}
           >
@@ -131,10 +133,22 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 style={{ maxWidth: '100%', borderRadius: '12px', display: 'block' }} 
               />
             ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkGfm>
                 {message.message}
               </ReactMarkdown>
             )}
+            {message.status === 'error' && (
+              <div style={{ 
+                fontSize: '10px', 
+                color: '#ef4444', 
+                fontWeight: 'bold', 
+                marginTop: '4px',
+                textAlign: 'right'
+              }}>
+                Failed to send
+              </div>
+            )}
+
 
             {/* Reaction Button (appears on hover) */}
             <button 

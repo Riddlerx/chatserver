@@ -10,13 +10,16 @@ const {
 module.exports = (io, db, socket, rooms, activeSessions) => {
   socket.on("joinRoom", ({ room, password }, callback) => {
     const normalizedRoom = normalizeOptionalString(room, { maxLength: 80 });
+    console.log(`[joinRoom] [${socket.id}] Attempting to join room: ${normalizedRoom} for user: ${socket.username}`);
     if (!socket.username) {
+      console.warn(`[joinRoom] [${socket.id}] Join failed: No username on socket`);
       return (
         typeof callback === "function" &&
         callback({ success: false, message: "Authentication required." })
       );
     }
     if (!normalizedRoom || !isValidRoomName(normalizedRoom)) {
+      console.warn(`[joinRoom] [${socket.id}] Join failed: Invalid room name: ${room}`);
       return (
         typeof callback === "function" &&
         callback({ success: false, message: "Invalid room." })
@@ -28,13 +31,14 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
       [normalizedRoom],
       async (roomErr, roomRecord) => {
         if (roomErr) {
-          console.error("Join room lookup DB Error:", roomErr.message);
+          console.error(`[joinRoom] [${socket.id}] DB Error: ${roomErr.message}`);
           return (
             typeof callback === "function" &&
             callback({ success: false, message: "Failed to join room." })
           );
         }
         if (!roomRecord) {
+          console.warn(`[joinRoom] [${socket.id}] Join failed: Room ${normalizedRoom} not found in custom_rooms`);
           return (
             typeof callback === "function" &&
             callback({ success: false, message: "Room not found." })
@@ -45,6 +49,7 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
           try {
             const match = await bcrypt.compare(password || "", roomRecord.password);
             if (!match) {
+              console.warn(`[joinRoom] [${socket.id}] Join failed: Incorrect password for room ${normalizedRoom}`);
               socket.emit("join room error", {
                 error: "Incorrect room password.",
                 room: normalizedRoom,
@@ -55,7 +60,7 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
               );
             }
           } catch (err) {
-            console.error("Bcrypt compare error:", err.message);
+            console.error(`[joinRoom] [${socket.id}] Bcrypt error: ${err.message}`);
             return (
               typeof callback === "function" &&
               callback({ success: false, message: "Error verifying password." })
@@ -75,6 +80,10 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
 
         socket.room = normalizedRoom;
         socket.join(normalizedRoom);
+        console.log(`[joinRoom] [${socket.id}] User ${socket.username} successfully joined room ${normalizedRoom}`);
+
+        if (!rooms[normalizedRoom]) rooms[normalizedRoom] = new Map();
+        rooms[normalizedRoom].set(socket.username, socket.status || "online");
 
         if (!rooms[normalizedRoom]) rooms[normalizedRoom] = new Map();
         rooms[normalizedRoom].set(socket.username, socket.status || "online");

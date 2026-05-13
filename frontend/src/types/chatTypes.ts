@@ -21,6 +21,7 @@ export interface Message {
   reply_count?: number;
   userColor?: string;
   reactions?: { emoji: string, count: number }[];
+  status?: 'sending' | 'sent' | 'error';
 }
 
 export interface Reaction {

@@ -67,16 +67,6 @@ module.exports = (server, db, rooms, activeSessions) => {
       },
   });
 
-  // Apply connection rate limiter
-  io.on("connection", async (socket) => {
-      try {
-          await connectionRateLimiter.consume(socket.handshake.address);
-      } catch (_err) {
-          console.warn(`Connection rate limit exceeded for ${socket.handshake.address}`);
-          socket.disconnect(true);
-      }
-  });
-    
   // Apply Socket.IO authentication middleware
   io.use(socketAuthMiddleware(db, process.env.JWT_SECRET));
 

@@ -20,11 +20,14 @@ module.exports = (io, db, socket) => {
       const normalizedParentId =
         parentMessageId == null ? null : normalizePositiveInt(parentMessageId);
 
+      console.log(`[sendMessage] [${socket.id}] Attempt by ${socket.username}: roomId=${roomId}, resolved=${resolvedRoomId}, socketRoom=${socket.room}`);
+
       try {
         await messageRateLimiter.consume(
           socket.username || socket.handshake.address,
         );
       } catch (_err) {
+        console.warn(`[sendMessage] [${socket.id}] Rate limit hit for ${socket.username}`);
         return (
           typeof callback === "function" &&
           callback({
@@ -35,6 +38,7 @@ module.exports = (io, db, socket) => {
       }
 
       if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
+        console.warn(`[sendMessage] [${socket.id}] Rejected: username=${!!socket.username}, roomSet=${!!socket.room}, match=${socket.room === resolvedRoomId}`);
         return (
           typeof callback === "function" &&
           callback({

@@ -6,7 +6,25 @@ const registerDMHandlers = require("./dmHandlers");
 const registerUserHandlers = require("./userHandlers");
 
 module.exports = (io, db, rooms = {}, activeSessions = {}) => {
-  io.of("/").on("connection", (socket) => {
+  const { RateLimiterMemory } = require("rate-limiter-flexible");
+  const connectionRateLimiter = new RateLimiterMemory({
+      points: 50,
+      duration: 15 * 60,
+  });
+
+  io.of("/").on("connection", async (socket) => {
+    // Apply connection rate limiter
+    const address = socket.handshake.address;
+    if (address !== '::ffff:127.0.0.1' && address !== '::1' && address !== '127.0.0.1') {
+        try {
+            await connectionRateLimiter.consume(address);
+        } catch (_err) {
+            console.warn(`Connection rate limit exceeded for ${address}`);
+            socket.disconnect(true);
+            return;
+        }
+    }
+
     console.log(`User connected: ${socket.id}`);
     activeSessions[socket.username] = socket.id;
     

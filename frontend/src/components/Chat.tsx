@@ -13,10 +13,6 @@ const Chat = () => {
   const { joinRoom } = useSocket();
   const { currentRoom } = useChatStore();
 
-  useEffect(() => {
-    joinRoom(currentRoom);
-  }, [joinRoom, currentRoom]);
-
   return (
     <motion.div 
       initial={{ opacity: 0 }}
