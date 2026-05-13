@@ -60,7 +60,7 @@ const UserList = () => {
                 fontWeight: 700,
                 fontSize: '12px',
                 color: 'white',
-                ...getAvatarStyle(user.profilePicture, user.username)
+                ...getAvatarStyle(user.profilePicture ? (user.profilePicture.startsWith('/uploads/') ? user.profilePicture : `/uploads/${user.profilePicture}`) : undefined, user.username)
               }}>
                 {!user.profilePicture && (user.displayName || user.username)[0].toUpperCase()}
               </div>
