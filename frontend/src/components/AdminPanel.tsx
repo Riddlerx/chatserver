@@ -3,49 +3,67 @@ import Modal from './Modal';
 import api from '../api';
 import { Ban, Search } from 'lucide-react';
 import { format } from 'date-fns';
+import type { User } from '../types/chatTypes';
 
 interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface AdminUser extends User {
+  created_at: string;
+}
+
+interface AuditLogEntry {
+  id: number;
+  admin_username: string;
+  action: string;
+  target_username: string | null;
+  reason: string | null;
+  timestamp: string;
+}
+
 const AdminPanel = ({ isOpen, onClose }: AdminPanelProps) => {
-  const [users, setUsers] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[] | null>(null);
   const [activeTab, setActiveTab] = useState<'users' | 'audit'>('users');
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const loading = isOpen && (users === null || auditLogs === null);
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/admin/users');
+      const response = await api.get<AdminUser[]>('/admin/users');
       setUsers(response.data);
     } catch (err) {
+      setUsers([]);
       console.error('Failed to fetch users', err);
     }
   };
 
   const fetchAuditLogs = async () => {
     try {
-      const response = await api.get('/admin/audit-log');
+      const response = await api.get<AuditLogEntry[]>('/admin/audit-log');
       setAuditLogs(response.data);
     } catch (err) {
+      setAuditLogs([]);
       console.error('Failed to fetch audit logs', err);
     }
   };
 
   useEffect(() => {
-    if (isOpen) {
-      setLoading(true);
-      Promise.all([fetchUsers(), fetchAuditLogs()]).finally(() => setLoading(false));
-    }
+    if (!isOpen) return;
+
+    const loadTimer = window.setTimeout(() => {
+      void Promise.all([fetchUsers(), fetchAuditLogs()]);
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
   }, [isOpen]);
 
-  const handleRoleChange = async (username: string, role: string) => {
+  const handleRoleChange = async (username: string, role: User['role']) => {
     try {
       await api.post(`/admin/role/${username}`, { role });
-      fetchUsers();
-      fetchAuditLogs();
+      await Promise.all([fetchUsers(), fetchAuditLogs()]);
     } catch (err) {
       console.error('Failed to change role', err);
     }
@@ -56,15 +74,14 @@ const AdminPanel = ({ isOpen, onClose }: AdminPanelProps) => {
     if (reason !== null) {
       try {
         await api.post('/admin/ban', { username, reason });
-        fetchUsers();
-        fetchAuditLogs();
+        await Promise.all([fetchUsers(), fetchAuditLogs()]);
       } catch (err) {
         console.error('Failed to ban user', err);
       }
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = (users ?? []).filter(u => 
     u.username.toLowerCase().includes(search.toLowerCase()) || 
     (u.displayName && u.displayName.toLowerCase().includes(search.toLowerCase()))
   );
@@ -166,7 +183,7 @@ const AdminPanel = ({ isOpen, onClose }: AdminPanelProps) => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <select 
                       value={u.role} 
-                      onChange={(e) => handleRoleChange(u.username, e.target.value)}
+                      onChange={(e) => handleRoleChange(u.username, e.target.value as User['role'])}
                       style={{
                         padding: '6px 10px',
                         borderRadius: '8px',
@@ -214,7 +231,7 @@ const AdminPanel = ({ isOpen, onClose }: AdminPanelProps) => {
                 </tr>
               </thead>
               <tbody>
-                {auditLogs.map((log) => (
+                {(auditLogs ?? []).map((log) => (
                   <tr key={log.id} style={{ borderBottom: 'rgba(255,255,255,0.02)' }}>
                     <td style={{ padding: '12px 8px', fontWeight: 600 }}>{log.admin_username}</td>
                     <td style={{ padding: '12px 8px' }}>

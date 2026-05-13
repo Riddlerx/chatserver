@@ -6,6 +6,10 @@ import api from '../api';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
 import { format } from 'date-fns';
+import type { Message } from '../types/chatTypes';
+import type { Notification } from '../store/useChatStore';
+
+type SearchResult = Pick<Message, 'id' | 'username' | 'timestamp' | 'message'>;
 
 const Header = () => {
   const { 
@@ -23,7 +27,7 @@ const Header = () => {
   const { joinRoom, socket } = useSocket();
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -50,7 +54,7 @@ const Header = () => {
     setIsSearchOpen(true);
     try {
       const roomParam = currentDMUser ? '' : `&room=${encodeURIComponent(currentRoom)}`;
-      const response = await api.get(`/messages/search?q=${encodeURIComponent(searchQuery)}${roomParam}`);
+      const response = await api.get<SearchResult[]>(`/messages/search?q=${encodeURIComponent(searchQuery)}${roomParam}`);
       setSearchResults(response.data);
     } catch (err) {
       console.error('Search failed', err);
@@ -59,7 +63,7 @@ const Header = () => {
     }
   };
 
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = (notification: Notification) => {
     if (notification.link) {
       if (notification.link.type === 'room') {
         setCurrentDMUser(null);
@@ -138,7 +142,7 @@ const Header = () => {
               <p style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px' }}>No messages found.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {searchResults.map((msg: any) => (
+                {searchResults.map((msg) => (
                   <div key={msg.id} style={{ 
                     padding: '12px', 
                     background: 'var(--input-bg)', 

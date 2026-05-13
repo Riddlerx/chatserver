@@ -30,7 +30,7 @@ function App() {
               profilePicture: payload.profilePicture
             }, token);
           }
-        } catch (e) {
+        } catch {
           localStorage.removeItem('chatToken');
         }
       }

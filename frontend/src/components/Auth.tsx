@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isAxiosError } from 'axios';
 import { motion } from 'framer-motion';
 import { useChatStore } from '../store/useChatStore';
 import api from '../api';
@@ -33,8 +34,8 @@ const Auth = () => {
       } else {
         setError(response.data.error || 'Authentication failed');
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Connection error');
+    } catch (err) {
+      setError(isAxiosError<{ error?: string }>(err) ? (err.response?.data?.error || 'Connection error') : 'Connection error');
     } finally {
       setLoading(false);
     }

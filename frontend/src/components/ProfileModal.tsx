@@ -4,6 +4,7 @@ import { useChatStore } from '../store/useChatStore';
 import api from '../api';
 import { Camera, Save } from 'lucide-react';
 import { getAvatarStyle } from '../utils/userUtils';
+import type { User } from '../types/chatTypes';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -11,9 +12,15 @@ interface ProfileModalProps {
   targetUsername: string;
 }
 
+interface ProfileData extends User {
+  bio?: string;
+  background?: string;
+  created_at?: string;
+}
+
 const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) => {
   const { user: currentUser, setAuth, token } = useChatStore();
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [displayName, setDisplayName] = useState('');
@@ -28,7 +35,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
       const fetchProfile = async () => {
         setLoading(true);
         try {
-          const response = await api.get(`/profile/${targetUsername}`);
+          const response = await api.get<ProfileData>(`/profile/${targetUsername}`);
           setProfile(response.data);
           setDisplayName(response.data.displayName || '');
           setBio(response.data.bio || '');
@@ -52,7 +59,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
         status
       });
       if (isOwnProfile && currentUser) {
-        setAuth({ ...currentUser, displayName, profilePicture: profile.profilePicture }, token);
+        setAuth({ ...currentUser, displayName, profilePicture: profile?.profilePicture ?? currentUser.profilePicture }, token);
       }
       onClose();
     } catch (err) {
@@ -77,7 +84,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
         await api.post(`/profile/${targetUsername}`, {
           profilePicture: response.data.filePath
         });
-        setProfile((prev: any) => ({ ...prev, profilePicture: response.data.filePath }));
+        setProfile((prev) => (prev ? { ...prev, profilePicture: response.data.filePath } : prev));
         if (isOwnProfile && currentUser) {
           setAuth({ ...currentUser, profilePicture: response.data.filePath }, token);
         }

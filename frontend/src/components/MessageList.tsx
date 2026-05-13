@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import MessageItem from './MessageItem';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,9 +7,10 @@ const MessageList = () => {
   const { messages, typingUsers, user, currentDMUser, dmConversations } = useChatStore();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const displayMessages = currentDMUser 
-    ? (dmConversations[currentDMUser] || []) 
-    : messages;
+  const displayMessages = useMemo(
+    () => (currentDMUser ? (dmConversations[currentDMUser] || []) : messages),
+    [currentDMUser, dmConversations, messages],
+  );
 
   const filteredTypingUsers = typingUsers.filter(u => u !== (user?.displayName || user?.username));
 

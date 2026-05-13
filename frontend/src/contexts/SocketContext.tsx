@@ -1,19 +1,32 @@
-import React, { createContext, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useChatStore } from '../store/useChatStore';
-import type { Message } from '../types/chatTypes';
+import type { Message, Room, User } from '../types/chatTypes';
+import { SocketContext } from './socketContext';
 
-export const SocketContext = createContext<{
-  socket: Socket | null;
-  sendMessage: (message: string, roomId: string, parentMessageId?: number | null) => void;
-  sendDM: (toUser: string, message: string) => void;
-  joinRoom: (room: string, password?: string) => void;
-  addReaction: (messageId: number, emoji: string) => void;
-  removeReaction: (messageId: number, emoji: string) => void;
-} | null>(null);
+interface SocketAckResponse {
+  success: boolean;
+}
+
+interface DMHistoryPayload {
+  withUser: string;
+  messages: Message[];
+}
+
+interface ThreadHistoryPayload {
+  messages: Message[];
+}
+
+type ReactionSummary = NonNullable<Message['reactions']>;
+
+interface ReactionsUpdatedPayload {
+  messageId: number;
+  reactions: ReactionSummary;
+}
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const { 
     token, 
     setOnlineUsers, 
@@ -31,60 +44,60 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (isLoggedIn && token) {
       if (!socketRef.current) {
-        const socket = io({
+        const nextSocket = io({
           auth: { token },
           autoConnect: true,
         });
 
-        socket.on('connect', () => {
+        nextSocket.on('connect', () => {
           console.log('Connected to socket');
-          // Join default room on connection
-          socket.emit('joinRoom', { room: 'general' });
+          nextSocket.emit('joinRoom', { room: 'general' });
         });
 
-        socket.on('userList', (users) => {
+        nextSocket.on('userList', (users: User[]) => {
           setOnlineUsers(users);
         });
-// ... (rest of the listeners)
 
-        socket.on('custom rooms', (rooms) => {
+        nextSocket.on('custom rooms', (rooms: Room[]) => {
           setRooms(rooms);
         });
 
-        socket.on('chat message', (message) => {
+        nextSocket.on('chat message', (message: Message) => {
           addMessage(message);
         });
 
-        socket.on('messageHistory', (messages) => {
+        nextSocket.on('messageHistory', (messages: Message[]) => {
           setMessages(messages);
         });
 
-        socket.on('thread message', (message) => {
+        nextSocket.on('thread message', (message: Message) => {
           addThreadMessage(message);
         });
 
-        socket.on('thread history', ({ messages }) => {
+        nextSocket.on('thread history', ({ messages }: ThreadHistoryPayload) => {
           setThreadMessages(messages);
         });
 
-        socket.on('receive dm', (message) => {
+        nextSocket.on('receive dm', (message: Message) => {
           addDMMessage(message);
         });
 
-        socket.on('dm history', ({ withUser, messages }) => {
+        nextSocket.on('dm history', ({ withUser, messages }: DMHistoryPayload) => {
           setDMHistory(withUser, messages);
         });
 
-        socket.on('reactions updated', ({ messageId, reactions }) => {
+        nextSocket.on('reactions updated', ({ messageId, reactions }: ReactionsUpdatedPayload) => {
           updateMessageReactions(messageId, reactions);
         });
 
-        socketRef.current = socket;
+        socketRef.current = nextSocket;
+        setSocket(nextSocket);
       }
     } else {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
+        setSocket(null);
       }
     }
   }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, updateMessageReactions]);
@@ -107,7 +120,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     addMessage(optimisticMessage);
 
-    socketRef.current?.emit('sendMessage', { message, roomId, parentMessageId }, (response: any) => {
+    socketRef.current?.emit('sendMessage', { message, roomId, parentMessageId }, (response?: SocketAckResponse) => {
       if (!response || !response.success) {
         const updatedMessages = useChatStore.getState().messages.map((m): Message =>
           m.id === optimisticMessage.id ? { ...m, status: 'error' as const } : m
@@ -139,7 +152,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     addDMMessage(optimisticMessage);
 
-    socketRef.current?.emit('send dm', { toUser, message }, (response: any) => {
+    socketRef.current?.emit('send dm', { toUser, message }, (response?: SocketAckResponse) => {
       if (!response || !response.success) {
         const { dmConversations } = useChatStore.getState();
         const history = dmConversations[toUser] || [];
@@ -163,7 +176,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   return (
     <SocketContext.Provider value={{ 
-      socket: socketRef.current, 
+      socket,
       sendMessage, 
       sendDM, 
       joinRoom, 
