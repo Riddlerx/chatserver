@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
-const { body, validationResult } = require('express-validator');
 
 module.exports = (db) => {
   function performUserDeletion(username, res, adminUsername = null) {

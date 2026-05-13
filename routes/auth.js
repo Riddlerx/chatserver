@@ -75,7 +75,7 @@ module.exports = (db) => {
         }
 
         db.get(
-          "SELECT username, password, role FROM users WHERE username = ?",
+          "SELECT username, password, role, displayName, profilePicture FROM users WHERE username = ?",
           [username],
           async (err, user) => {
             if (err) {
@@ -95,12 +95,24 @@ module.exports = (db) => {
 
             console.log(`Login successful: "${username}"`);
             const token = jwt.sign(
-              { username: user.username, role: user.role },
+              { 
+                username: user.username, 
+                role: user.role,
+                displayName: user.displayName,
+                profilePicture: user.profilePicture
+              },
               process.env.JWT_SECRET,
               { expiresIn: "7d" },
             );
 
-            res.json({ success: true, token, username: user.username });
+            res.json({ 
+              success: true, 
+              token, 
+              username: user.username,
+              role: user.role,
+              displayName: user.displayName,
+              profilePicture: user.profilePicture
+            });
           },
         );
     });

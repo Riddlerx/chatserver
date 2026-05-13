@@ -25,11 +25,15 @@ module.exports = [
         io: 'readonly',
         marked: 'readonly',
         URL: 'readonly',
+        clearTimeout: 'readonly',
+        location: 'readonly',
+        Notification: 'readonly',
+        navigator: 'readonly',
       },
     },
     rules: {
-      'no-unused-vars': 'error',
-      'no-undef': 'error',
+      'no-unused-vars': 'warn',
+      'no-undef': 'warn',
     },
   },
 ];

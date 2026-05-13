@@ -58,7 +58,7 @@ const connectionRateLimiter = new RateLimiterMemory({
 });
 
 
-module.exports = (server, db, rooms, activeSessions, generateUserColor) => {
+module.exports = (server, db, rooms, activeSessions) => {
   const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
   const io = new Server(server, {
       cors: {
@@ -71,7 +71,7 @@ module.exports = (server, db, rooms, activeSessions, generateUserColor) => {
   io.on("connection", async (socket) => {
       try {
           await connectionRateLimiter.consume(socket.handshake.address);
-      } catch (err) {
+      } catch (_err) {
           console.warn(`Connection rate limit exceeded for ${socket.handshake.address}`);
           socket.disconnect(true);
       }
@@ -81,7 +81,7 @@ module.exports = (server, db, rooms, activeSessions, generateUserColor) => {
   io.use(socketAuthMiddleware(db, process.env.JWT_SECRET));
 
   // Load socket handlers
-  require("../socket_handlers")(io, db, rooms, activeSessions, generateUserColor);
+  require("../socket_handlers")(io, db, rooms, activeSessions);
 
   return io;
 };

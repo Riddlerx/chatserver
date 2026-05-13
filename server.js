@@ -1,117 +1,39 @@
 const path = require('path');
 const express = require('express');
 const http = require('http');
-const dotenv = require('dotenv');
 
-// Load environment variables FIRST
-dotenv.config();
+const config = require('./config');
+const securityMiddleware = require('./middleware/security');
+const cors = require('./middleware/cors');
+const apiLimiter = require('./middleware/rateLimiter');
 
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const hpp = require('hpp');
+const db = require('./db/index');
 
-const db = require('./db/index'); // Assuming db/index.js sets up and exports the db connection
-
-// Auto-initialize database if needed (for cloud deployments)
-const fs = require('fs');
-const dbPath = process.env.DB_PATH || './chat.db';
-
-if (!fs.existsSync(dbPath)) {
-  console.log('Database not found, initializing...');
-  require('./scripts/init-db.js');
-}
 const authMiddleware = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
-const messageRoutes = require('./routes/message'); // Import router directly
+const messageRoutes = require('./routes/message');
 const adminRoutes = require('./routes/admin');
-const uploadRoutes = require('./routes/upload'); // Assuming this exists for file uploads
+const uploadRoutes = require('./routes/upload');
 const socketService = require('./socket');
 
-if (!process.env.JWT_SECRET) {
+if (!config.JWT_SECRET) {
   console.error("FATAL ERROR: JWT_SECRET is not defined.");
   process.exit(1);
 }
 
-function parseAllowedOrigins(value) {
-  if (!value) {
-    return [
-      'http://localhost:3000',
-      'http://localhost',
-      'http://168.138.212.140:3000',
-      'http://168.138.212.140',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1',
-    ];
-  }
-
-  return value
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-}
-
-const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
-const cspConnectSrc = Array.from(new Set([
-  "'self'",
-  "ws:",
-  "wss:",
-  "https://cdn.jsdelivr.net",
-  ...allowedOrigins,
-]));
-
 const app = express();
-app.set('trust proxy', 1); // Trust first proxy (Nginx)
-// Relaxed Helmet for HTTP/IP usage
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-      scriptSrcAttr: ["'unsafe-inline'"], // Allow onclick handlers
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      imgSrc: ["'self'", "data:", "https:", "http:"],
-      connectSrc: cspConnectSrc,
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      objectSrc: ["'none'"],
-      upgradeInsecureRequests: null,
-    },
-  },
-  crossOriginOpenerPolicy: { policy: "unsafe-none" },
-  originAgentCluster: false, // Fix Origin-Agent-Cluster warning
-  hsts: false,
-}));
-app.use(hpp());
-const server = http.createServer(app);
-const port = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 
-// Global state for Socket.IO
-const rooms = {}; // Stores active users per room: { roomName: Map<username, status> }
-const activeSessions = {}; // Stores active sessions: { username: socketId }
+// Apply Security Middleware
+securityMiddleware(app);
 
-// --- Middleware ---
 // CORS Configuration
-const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl) 
-        // or if the origin is in our whitelist
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            console.error("Blocked by CORS:", origin);
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-};
-app.use(cors(corsOptions));
+app.use(cors);
 
 // Body Parsers
-app.use(express.json()); // For parsing application/json
-app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Public folder for static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -119,105 +41,78 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Handle favicon.ico to prevent 404
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Rate Limiting for HTTP requests
-const apiLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-	message: 'Too many requests from this IP, please try again after 15 minutes',
-	standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
-app.use('/api', apiLimiter); // Apply to all routes under /api
+// Rate Limiting for API routes
+app.use('/api', apiLimiter);
 
 // --- Routes ---
-// Public routes (e.g., for registration, login)
+// Public routes
 app.use('/api/auth', authRoutes(db));
 
-// Protected routes (require authentication)
-app.use('/api', authMiddleware(db, process.env.JWT_SECRET)); // Apply auth middleware to all subsequent routes
+// Protected routes
+app.use('/api', authMiddleware(db, config.JWT_SECRET));
 app.use('/api/profile', profileRoutes(db));
-app.use('/api/messages', messageRoutes(db)); // Pass the router directly
+app.use('/api/messages', messageRoutes(db));
 app.use('/api/admin', adminRoutes(db));
-app.use('/api/upload', uploadRoutes); // Already configured to use internal logic
+app.use('/api/upload', uploadRoutes);
 
-// Catch-all for API routes not defined
+// Catch-all for API routes
 app.use('/api', (req, res) => {
     res.status(404).json({ error: 'API endpoint not found.' });
 });
 
 // --- Global Error Handler ---
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error("Global Error Handler caught an error:", err.stack);
-
-  // Determine status code, default to 500 if not specified
   const statusCode = err.statusCode || 500;
-
-  // Send a generic error response to the client
   res.status(statusCode).json({
     error: 'An unexpected error occurred.',
-    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+    message: config.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
   });
 });
 
+const server = http.createServer(app);
+const port = config.PORT;
 
-// --- Socket.IO Setup ---
-const io = socketService(server, db, rooms, activeSessions, require('./utils/colors').generateUserColor);
+// Global state for Socket.IO
+const rooms = {}; 
+const activeSessions = {};
 
-// --- Health Check ---
+const io = socketService(server, db, rooms, activeSessions);
+
 app.get('/', (req, res) => {
     res.send('Chat server is running!');
 });
 
-// --- Start Server ---
 server.listen(port, () => {
     console.log(`Server listening on port ${port}`);
-    // Initialize database if it doesn't exist (e.g., create tables)
 });
 
 // --- Graceful Shutdown ---
-process.on('SIGINT', async () => {
-    console.log('Received SIGINT. Shutting down gracefully...');
-    // Close Socket.IO server
+const shutdown = async (signal) => {
+    console.log(`Received ${signal}. Shutting down gracefully...`);
+    
+    // Failsafe: force exit after 5 seconds
+    setTimeout(() => {
+        console.error('Graceful shutdown timed out. Forcing exit.');
+        process.exit(1);
+    }, 5000);
+
     io.close(() => {
         console.log('Socket.IO server closed.');
-    });
-    // Close HTTP server
-    server.close(() => {
-        console.log('HTTP server closed.');
-        // Close database connection (if applicable, depends on db/index.js implementation)
-        if (db.close) {
-            db.close((err) => {
-                if (err) {
-                    console.error('Error closing database connection:', err);
-                } else {
-                    console.log('Database connection closed.');
-                }
+        server.close(() => {
+            console.log('HTTP server closed.');
+            if (db.close) {
+                db.close((err) => {
+                    if (err) console.error('Error closing database connection:', err);
+                    else console.log('Database connection closed.');
+                    process.exit(0);
+                });
+            } else {
                 process.exit(0);
-            });
-        } else {
-            process.exit(0);
-        }
+            }
+        });
     });
-});
-process.on('SIGTERM', async () => {
-    console.log('Received SIGTERM. Shutting down gracefully...');
-    // Handle SIGTERM similarly to SIGINT
-    io.close(() => {
-        console.log('Socket.IO server closed.');
-    });
-    server.close(() => {
-        console.log('HTTP server closed.');
-        if (db.close) {
-            db.close((err) => {
-                if (err) {
-                    console.error('Error closing database connection:', err);
-                } else {
-                    console.log('Database connection closed.');
-                }
-                process.exit(0);
-            });
-        } else {
-            process.exit(0);
-        }
-    });
-});
+};
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
