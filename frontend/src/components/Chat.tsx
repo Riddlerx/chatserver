@@ -1,7 +1,4 @@
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useSocket } from '../hooks/useSocket';
-import { useChatStore } from '../store/useChatStore';
 import Sidebar from './Sidebar';
 import MessageList from './MessageList';
 import UserList from './UserList';
@@ -9,10 +6,6 @@ import ChatInput from './ChatInput';
 import Header from './Header';
 
 const Chat = () => {
-  // Initialize socket connection
-  const { joinRoom } = useSocket();
-  const { currentRoom } = useChatStore();
-
   return (
     <motion.div 
       initial={{ opacity: 0 }}

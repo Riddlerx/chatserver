@@ -133,7 +133,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 style={{ maxWidth: '100%', borderRadius: '12px', display: 'block' }} 
               />
             ) : (
-              <ReactMarkdown remarkGfm>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {message.message}
               </ReactMarkdown>
             )}

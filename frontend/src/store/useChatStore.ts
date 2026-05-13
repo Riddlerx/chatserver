@@ -126,7 +126,7 @@ export const useChatStore = create<ChatState>((set) => ({
     const isMention = message.message.includes(`@${state.user?.username}`) || 
                       (state.user?.displayName && message.message.includes(`@${state.user.displayName}`));
 
-    if (!isCurrent) {
+    if (!isCurrent && message.room) {
       newUnread[message.room] = (newUnread[message.room] || 0) + 1;
 
       if (isMention) {

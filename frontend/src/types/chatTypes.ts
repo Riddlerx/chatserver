@@ -9,7 +9,8 @@ export interface User {
 
 export interface Message {
   id: number;
-  room: string;
+  room?: string;
+  to?: string;
   username: string;
   displayName?: string;
   profilePicture?: string;

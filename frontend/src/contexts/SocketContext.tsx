@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useChatStore } from '../store/useChatStore';
+import type { Message } from '../types/chatTypes';
 
 export const SocketContext = createContext<{
   socket: Socket | null;
@@ -92,7 +93,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const { user, addMessage } = useChatStore.getState();
     if (!user) return;
 
-    const optimisticMessage: any = {
+    const optimisticMessage: Message = {
       id: Date.now(), 
       room: roomId,
       username: user.username,
@@ -108,8 +109,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     socketRef.current?.emit('sendMessage', { message, roomId, parentMessageId }, (response: any) => {
       if (!response || !response.success) {
-        const updatedMessages = useChatStore.getState().messages.map(m => 
-          m.id === optimisticMessage.id ? { ...m, status: 'error' } : m
+        const updatedMessages = useChatStore.getState().messages.map((m): Message =>
+          m.id === optimisticMessage.id ? { ...m, status: 'error' as const } : m
         );
         useChatStore.setState({ messages: updatedMessages });
       }
@@ -124,8 +125,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const { user, addDMMessage } = useChatStore.getState();
     if (!user) return;
 
-    const optimisticMessage: any = {
+    const optimisticMessage: Message = {
       id: Date.now(),
+      room: '',
       to: toUser,
       username: user.username,
       displayName: user.displayName || user.username,
@@ -141,8 +143,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!response || !response.success) {
         const { dmConversations } = useChatStore.getState();
         const history = dmConversations[toUser] || [];
-        const updatedHistory = history.map(m => 
-          m.id === optimisticMessage.id ? { ...m, status: 'error' } : m
+        const updatedHistory = history.map((m): Message =>
+          m.id === optimisticMessage.id ? { ...m, status: 'error' as const } : m
         );
         useChatStore.setState({
           dmConversations: { ...dmConversations, [toUser]: updatedHistory }
