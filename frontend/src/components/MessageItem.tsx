@@ -3,7 +3,7 @@ import type { Message } from '../types/chatTypes';
 import { useChatStore } from '../store/useChatStore';
 import { useSocket } from '../hooks/useSocket';
 import { format } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Modal from './Modal';
@@ -18,7 +18,7 @@ interface MessageItemProps {
 
 const MessageItem = ({ message }: MessageItemProps) => {
   const { user, theme } = useChatStore();
-  const { addReaction, removeReaction } = useSocket();
+  const { addReaction } = useSocket();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -38,9 +38,6 @@ const MessageItem = ({ message }: MessageItemProps) => {
   }, []);
 
   const toggleReaction = (emoji: string) => {
-    // Basic logic: if user already reacted with this emoji, remove it. 
-    // Since we don't have usernames in reactions from backend currently (only count), 
-    // we just add for now. In a real app we'd check if current user is in usernames list.
     addReaction(message.id, emoji);
   };
 
@@ -83,8 +80,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: isSelf ? 'flex-end' : 'flex-start',
-          position: 'relative',
-          group: 'true' // For hover effects if we use them
+          position: 'relative'
         }}
         onMouseEnter={(e) => {
           const btn = e.currentTarget.querySelector('.reaction-btn') as HTMLElement;

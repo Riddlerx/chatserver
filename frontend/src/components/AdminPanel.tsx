@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from './Modal';
 import api from '../api';
-import { Shield, Trash2, Ban, UserCheck, Search } from 'lucide-react';
+import { Ban, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface AdminPanelProps {

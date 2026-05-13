@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 import { useChatStore } from '../store/useChatStore';
 import api from '../api';
-import { User, Camera, Save } from 'lucide-react';
+import { Camera, Save } from 'lucide-react';
 import { getAvatarStyle } from '../utils/userUtils';
 
 interface ProfileModalProps {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { useSocket } from '../hooks/useSocket';
-import { Hash, Lock, Plus, LogOut, Shield, MessageSquare } from 'lucide-react';
+import { Hash, Lock, Plus, LogOut, Shield } from 'lucide-react';
 import ProfileModal from './ProfileModal';
 import AdminPanel from './AdminPanel';
 import { getAvatarStyle } from '../utils/userUtils';
