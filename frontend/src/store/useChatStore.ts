@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, Message, Room, DMConversation } from '../types/chatTypes';
+import type { User, Message, Room } from '../types/chatTypes';
 
 export interface Notification {
   id: string;
@@ -111,13 +111,18 @@ export const useChatStore = create<ChatState>((set) => ({
   setRooms: (rooms) => set({ rooms }),
   
   setOnlineUsers: (onlineUsers) => {
+    if (!Array.isArray(onlineUsers)) return;
+    
     const typingUsers = onlineUsers
-      .filter(u => u.status === 'typing')
+      .filter(u => u && u.status === 'typing')
       .map(u => u.displayName || u.username);
       
     set((state) => {
+      const currentMessages = Array.isArray(state.messages) ? state.messages : [];
+      const currentThreadMessages = Array.isArray(state.threadMessages) ? state.threadMessages : [];
+
       // Sync messages with updated user profile info
-      const updatedMessages = state.messages.map(message => {
+      const updatedMessages = currentMessages.map(message => {
         const user = onlineUsers.find(u => u.username === message.username);
         if (user) {
           return {
@@ -129,7 +134,7 @@ export const useChatStore = create<ChatState>((set) => ({
         return message;
       });
 
-      const updatedThreadMessages = state.threadMessages.map(message => {
+      const updatedThreadMessages = currentThreadMessages.map(message => {
         const user = onlineUsers.find(u => u.username === message.username);
         if (user) {
           return {
@@ -174,10 +179,10 @@ export const useChatStore = create<ChatState>((set) => ({
 
   updateUserProfile: (username, updates) => set((state) => {
     const user = state.user?.username === username ? { ...state.user, ...updates } : state.user;
-    const onlineUsers = state.onlineUsers.map((onlineUser) =>
+    const onlineUsers = (state.onlineUsers || []).map((onlineUser) =>
       onlineUser.username === username ? { ...onlineUser, ...updates } : onlineUser
     );
-    const messages = state.messages.map((message) =>
+    const messages = (state.messages || []).map((message) =>
       message.username === username
         ? {
             ...message,
@@ -186,7 +191,7 @@ export const useChatStore = create<ChatState>((set) => ({
           }
         : message
     );
-    const threadMessages = state.threadMessages.map((message) =>
+    const threadMessages = (state.threadMessages || []).map((message) =>
       message.username === username
         ? {
             ...message,
@@ -196,7 +201,7 @@ export const useChatStore = create<ChatState>((set) => ({
         : message
     );
     const dmConversations = Object.fromEntries(
-      Object.entries(state.dmConversations).map(([key, data]) => {
+      Object.entries(state.dmConversations || {}).map(([key, data]) => {
         if (!data || !Array.isArray(data.messages)) return [key, data];
         return [
           key,
@@ -223,21 +228,26 @@ export const useChatStore = create<ChatState>((set) => ({
     return { user, onlineUsers, messages, threadMessages, dmConversations };
   }),
   
-  setMessages: (messages, hasMore = false) => set({ messages, hasMoreMessages: hasMore }),
+  setMessages: (messages, hasMore = false) => set({ 
+    messages: Array.isArray(messages) ? messages : [], 
+    hasMoreMessages: hasMore 
+  }),
 
   prependMessages: (newMessages, hasMore) => set((state) => ({
-    messages: [...newMessages, ...state.messages],
+    messages: [...(Array.isArray(newMessages) ? newMessages : []), ...(Array.isArray(state.messages) ? state.messages : [])],
     hasMoreMessages: hasMore
   })),
   
   addMessage: (message) => set((state) => {
+    const currentMessages = Array.isArray(state.messages) ? state.messages : [];
+    
     // Check if this message is a confirmation of an optimistic message
-    const existingIndex = state.messages.findIndex(m => 
+    const existingIndex = currentMessages.findIndex(m => 
       m.status === 'sending' && m.message === message.message && m.username === message.username
     );
 
     if (existingIndex !== -1) {
-      const newMessages = [...state.messages];
+      const newMessages = [...currentMessages];
       newMessages[existingIndex] = { ...message, status: 'sent' };
       return { messages: newMessages };
     }
@@ -265,7 +275,7 @@ export const useChatStore = create<ChatState>((set) => ({
       }
     }
     return {
-      messages: isCurrentRoom ? [...state.messages, message] : state.messages,
+      messages: isCurrentRoom ? [...currentMessages, message] : currentMessages,
       unreadCounts: newUnread,
       notifications: newNotifications.slice(0, 50)
     };
@@ -274,11 +284,18 @@ export const useChatStore = create<ChatState>((set) => ({
   
   setCurrentThreadId: (currentThreadId) => set({ currentThreadId, threadMessages: [] }),
   
-  setThreadMessages: (threadMessages) => set({ threadMessages }),
+  setThreadMessages: (threadMessages) => set({ 
+    threadMessages: Array.isArray(threadMessages) ? threadMessages : [] 
+  }),
   
-  addThreadMessage: (message) => set((state) => ({
-    threadMessages: state.currentThreadId === message.parent_message_id ? [...state.threadMessages, message] : state.threadMessages
-  })),
+  addThreadMessage: (message) => set((state) => {
+    const currentThreadMessages = Array.isArray(state.threadMessages) ? state.threadMessages : [];
+    return {
+      threadMessages: state.currentThreadId === message.parent_message_id 
+        ? [...currentThreadMessages, message] 
+        : currentThreadMessages
+    };
+  }),
   
   setCurrentDMUser: (currentDMUser) => set((state) => ({ 
     currentDMUser, 
@@ -286,16 +303,17 @@ export const useChatStore = create<ChatState>((set) => ({
   })),
   
   setDMHistory: (username, messages, hasMore) => set((state) => ({
-    dmConversations: { ...state.dmConversations, [username]: { messages: messages || [], hasMore } }
+    dmConversations: { ...state.dmConversations, [username]: { messages: Array.isArray(messages) ? messages : [], hasMore } }
   })),
 
   prependDMMessages: (username, newMessages, hasMore) => set((state) => {
     const current = state.dmConversations[username] || { messages: [], hasMore: false };
+    const currentHistory = Array.isArray(current.messages) ? current.messages : [];
     return {
       dmConversations: {
         ...state.dmConversations,
         [username]: {
-          messages: [...(newMessages || []), ...current.messages],
+          messages: [...(Array.isArray(newMessages) ? newMessages : []), ...currentHistory],
           hasMore
         }
       }
@@ -306,7 +324,8 @@ export const useChatStore = create<ChatState>((set) => ({
     // If it's a confirmation of an optimistic message, replace it
     const recipient = message.to || (state.currentDMUser && message.username === state.user?.username ? state.currentDMUser : message.username);
     const data = state.dmConversations[recipient] || { messages: [], hasMore: false };
-    const history = data.messages || [];
+    const history = Array.isArray(data.messages) ? data.messages : [];
+    
     const existingIndex = history.findIndex(m => 
       m.status === 'sending' && m.message === message.message && m.username === message.username
     );
@@ -326,6 +345,7 @@ export const useChatStore = create<ChatState>((set) => ({
     const otherUser = isFromMe ? (state.currentDMUser || '') : message.username;
     const isCurrent = state.currentDMUser === otherUser;
     const currentData = state.dmConversations[otherUser] || { messages: [], hasMore: false };
+    const currentHistoryData = Array.isArray(currentData.messages) ? currentData.messages : [];
     const newUnread = { ...state.unreadCounts };
     const newNotifications = [...state.notifications];
 
@@ -347,7 +367,7 @@ export const useChatStore = create<ChatState>((set) => ({
         ...state.dmConversations,
         [otherUser]: {
           ...currentData,
-          messages: [...(currentData.messages || []), message]
+          messages: [...currentHistoryData, message]
         }
       },
       unreadCounts: newUnread,
@@ -372,11 +392,11 @@ export const useChatStore = create<ChatState>((set) => ({
     };
   }),
 
-  setUnreadCounts: (unreadCounts) => set({ unreadCounts }),
+  setUnreadCounts: (unreadCounts) => set({ unreadCounts: unreadCounts || {} }),
 
   updateMessageReactions: (messageId, reactions) => set((state) => ({
-    messages: state.messages.map(m => m.id === messageId ? { ...m, reactions } : m),
-    threadMessages: state.threadMessages.map(m => m.id === messageId ? { ...m, reactions } : m)
+    messages: (state.messages || []).map(m => m.id === messageId ? { ...m, reactions } : m),
+    threadMessages: (state.threadMessages || []).map(m => m.id === messageId ? { ...m, reactions } : m)
   })),
 
   incrementUnread: (key) => set((state) => ({
@@ -393,11 +413,11 @@ export const useChatStore = create<ChatState>((set) => ({
       id: Math.random().toString(36).substr(2, 9),
       timestamp: new Date().toISOString(),
       read: false
-    }, ...state.notifications].slice(0, 50)
+    }, ...(state.notifications || [])].slice(0, 50)
   })),
 
   markNotificationsAsRead: () => set((state) => ({
-    notifications: state.notifications.map(n => ({ ...n, read: true }))
+    notifications: (state.notifications || []).map(n => ({ ...n, read: true }))
   })),
 
   clearNotifications: () => set({ notifications: [] }),

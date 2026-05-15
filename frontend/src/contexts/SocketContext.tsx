@@ -87,8 +87,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           addMessage(message);
         });
 
-        nextSocket.on('messageHistory', ({ messages, hasMore }: { messages: Message[], hasMore: boolean }) => {
-          setMessages(messages, hasMore);
+        nextSocket.on('messageHistory', (data: any) => {
+          if (Array.isArray(data)) {
+            setMessages(data, false);
+          } else if (data && Array.isArray(data.messages)) {
+            setMessages(data.messages, !!data.hasMore);
+          }
         });
 
         nextSocket.on('thread message', (message: Message) => {
@@ -103,8 +107,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           addDMMessage(message);
         });
 
-        nextSocket.on('dm history', ({ withUser, messages, hasMore }: { withUser: string, messages: Message[], hasMore: boolean }) => {
-          setDMHistory(withUser, messages, hasMore);
+        nextSocket.on('dm history', (data: any) => {
+          if (data && data.withUser && Array.isArray(data.messages)) {
+            setDMHistory(data.withUser, data.messages, !!data.hasMore);
+          }
         });
 
         nextSocket.on('reactions updated', ({ messageId, reactions }: ReactionsUpdatedPayload) => {
