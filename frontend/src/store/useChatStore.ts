@@ -236,14 +236,14 @@ export const useChatStore = create<ChatState>((set) => ({
       return { messages: newMessages };
     }
 
-    const isCurrent = state.currentRoom === message.room && !state.currentDMUser;
+    const isCurrentRoom = state.currentRoom === message.room && !state.currentDMUser;
     const newUnread = { ...state.unreadCounts };
     const newNotifications = [...state.notifications];
 
     const isMention = message.message.includes(`@${state.user?.username}`) || 
                       (state.user?.displayName && message.message.includes(`@${state.user.displayName}`));
 
-    if (!isCurrent && message.room) {
+    if (!isCurrentRoom && message.room) {
       newUnread[message.room] = (newUnread[message.room] || 0) + 1;
 
       if (isMention) {
@@ -259,7 +259,7 @@ export const useChatStore = create<ChatState>((set) => ({
       }
     }
     return {
-      messages: isCurrent ? [...state.messages, message] : state.messages,
+      messages: isCurrentRoom ? [...state.messages, message] : state.messages,
       unreadCounts: newUnread,
       notifications: newNotifications.slice(0, 50)
     };

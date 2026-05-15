@@ -85,7 +85,7 @@ module.exports = (io, db, socket, activeSessions) => {
 
       socket.emit("dm history", {
         withUser: normalizedUser,
-        messages: rows.reverse().map((row) => ({
+        messages: (rows || []).reverse().map((row) => ({
           id: row.id,
           username: row.from_user,
           displayName: row.fromDisplayName,

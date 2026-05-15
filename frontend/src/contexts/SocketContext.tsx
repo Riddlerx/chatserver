@@ -67,7 +67,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setOnlineUsers(users);
         });
 
-        nextSocket.on('unreadCounts', (counts: { [key: string]: number }) => {
+        nextSocket.on('unreadCounts', (counts: { [key: string]: number } = {}) => {
           setUnreadCounts(counts);
         });
 
