@@ -37,6 +37,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setThreadMessages,
     addDMMessage,
     setDMHistory,
+    prependMessages,
+    prependDMMessages,
+    setDMRead,
+    setUnreadCounts,
+    updateUserProfile,
     updateMessageReactions,
     isLoggedIn 
   } = useChatStore();
@@ -58,6 +63,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setOnlineUsers(users);
         });
 
+        nextSocket.on('unreadCounts', (counts: { [key: string]: number }) => {
+          setUnreadCounts(counts);
+        });
+
+        nextSocket.on('dmRead', ({ byUser, at }: { byUser: string, at: string }) => {
+          setDMRead(byUser, at);
+        });
+
+        nextSocket.on('userStatusChanged', (user: User) => {
+          updateUserProfile(user.username, user);
+        });
+
         nextSocket.on('custom rooms', (rooms: Room[]) => {
           setRooms(rooms);
         });
@@ -66,8 +83,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           addMessage(message);
         });
 
-        nextSocket.on('messageHistory', (messages: Message[]) => {
-          setMessages(messages);
+        nextSocket.on('messageHistory', ({ messages, hasMore }: { messages: Message[], hasMore: boolean }) => {
+          setMessages(messages, hasMore);
         });
 
         nextSocket.on('thread message', (message: Message) => {
@@ -82,8 +99,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           addDMMessage(message);
         });
 
-        nextSocket.on('dm history', ({ withUser, messages }: DMHistoryPayload) => {
-          setDMHistory(withUser, messages);
+        nextSocket.on('dm history', ({ withUser, messages, hasMore }: { withUser: string, messages: Message[], hasMore: boolean }) => {
+          setDMHistory(withUser, messages, hasMore);
         });
 
         nextSocket.on('reactions updated', ({ messageId, reactions }: ReactionsUpdatedPayload) => {
@@ -100,7 +117,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSocket(null);
       }
     }
-  }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, updateMessageReactions]);
+  }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, updateUserProfile, updateMessageReactions]);
 
   const sendMessage = (message: string, roomId: string, parentMessageId?: number | null) => {
     const { user, addMessage } = useChatStore.getState();
@@ -132,6 +149,29 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const joinRoom = (room: string, password?: string) => {
     socketRef.current?.emit('joinRoom', { room, password });
+    socketRef.current?.emit('markRoomAsRead', { room });
+  };
+
+  const loadMoreMessages = (room: string, beforeTimestamp: string): Promise<void> => {
+    return new Promise((resolve) => {
+      socketRef.current?.emit('loadMoreMessages', { room, beforeTimestamp }, (response: { success: boolean, messages: Message[], hasMore: boolean }) => {
+        if (response.success) {
+          prependMessages(response.messages, response.hasMore);
+        }
+        resolve();
+      });
+    });
+  };
+
+  const loadMoreDMs = (withUser: string, beforeTimestamp: string): Promise<void> => {
+    return new Promise((resolve) => {
+      socketRef.current?.emit('loadMoreDMs', { withUser, beforeTimestamp }, (response: { success: boolean, messages: Message[], hasMore: boolean }) => {
+        if (response.success) {
+          prependDMMessages(withUser, response.messages, response.hasMore);
+        }
+        resolve();
+      });
+    });
   };
 
   const sendDM = (toUser: string, message: string) => {
@@ -155,12 +195,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     socketRef.current?.emit('send dm', { toUser, message }, (response?: SocketAckResponse) => {
       if (!response || !response.success) {
         const { dmConversations } = useChatStore.getState();
-        const history = dmConversations[toUser] || [];
+        const data = dmConversations[toUser] || { messages: [], hasMore: false };
+        const history = data.messages;
         const updatedHistory = history.map((m): Message =>
           m.id === optimisticMessage.id ? { ...m, status: 'error' as const } : m
         );
         useChatStore.setState({
-          dmConversations: { ...dmConversations, [toUser]: updatedHistory }
+          dmConversations: { ...dmConversations, [toUser]: { ...data, messages: updatedHistory } }
         });
       }
     });
@@ -180,6 +221,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       sendMessage, 
       sendDM, 
       joinRoom, 
+      loadMoreMessages,
+      loadMoreDMs,
       addReaction, 
       removeReaction 
     }}>

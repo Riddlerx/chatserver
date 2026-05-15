@@ -80,6 +80,42 @@ async function broadcastUserList(io, db, activeSessions) {
     });
 
     io.emit("userList", usersWithOnlineStatus);
+
+    // Calculate unread counts for each active socket
+    for (const [username, socketId] of Object.entries(activeSessions)) {
+      const socket = io.of("/").sockets.get(socketId);
+      if (!socket) continue;
+
+      const unreadCounts = {};
+
+      // 1. Room unreads
+      const roomUnreads = await db.query(
+        `SELECT cr.name, COUNT(m.id) as count
+         FROM custom_rooms cr
+         LEFT JOIN last_read_status lrs ON cr.name = lrs.room AND lrs.username = $1 AND lrs.is_dm = FALSE
+         LEFT JOIN messages m ON cr.name = m.room AND (lrs.last_read_message_id IS NULL OR m.id > lrs.last_read_message_id)
+         GROUP BY cr.name`,
+        [username]
+      );
+      roomUnreads.rows.forEach(row => {
+        if (Number(row.count) > 0) unreadCounts[row.name] = Number(row.count);
+      });
+
+      // 2. DM unreads
+      const dmUnreads = await db.query(
+        `SELECT dm.from_user as sender, COUNT(dm.id) as count
+         FROM direct_messages dm
+         LEFT JOIN last_read_status lrs ON dm.from_user = lrs.room AND lrs.username = $1 AND lrs.is_dm = TRUE
+         WHERE dm.to_user = $1 AND (lrs.last_read_message_id IS NULL OR dm.id > lrs.last_read_message_id)
+         GROUP BY dm.from_user`,
+        [username]
+      );
+      dmUnreads.rows.forEach(row => {
+        if (Number(row.count) > 0) unreadCounts[row.sender] = Number(row.count);
+      });
+
+      socket.emit("unreadCounts", unreadCounts);
+    }
   } catch (err) {
     logger.error({ err }, "broadcastUserList error");
   }
@@ -132,6 +168,67 @@ async function fetchLinkPreview(url) {
   }
 }
 
+async function broadcastUserUpdate(io, db, username, activeSessions) {
+  try {
+    const result = await db.query(
+      'SELECT username, "displayname" AS "displayName", "profilepicture" AS "profilePicture", status FROM users WHERE username = $1',
+      [username]
+    );
+    const user = result.rows[0];
+    if (!user) return;
+
+    const isOnline = !!activeSessions[username];
+    const status = isOnline ? (user.status || "online") : "offline";
+    
+    io.emit("userStatusChanged", { ...user, isOnline, status });
+  } catch (err) {
+    logger.error({ err, username }, "broadcastUserUpdate error");
+  }
+}
+
+async function markAsRead(io, db, username, room, isDm, lastMessageId, activeSessions) {
+  try {
+    if (!lastMessageId) {
+      // Find the latest message ID if not provided
+      const query = isDm 
+        ? "SELECT id FROM direct_messages WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1) ORDER BY timestamp DESC LIMIT 1"
+        : "SELECT id FROM messages WHERE room = $1 ORDER BY timestamp DESC LIMIT 1";
+      const params = isDm ? [username, room] : [room];
+      const result = await db.query(query, params);
+      lastMessageId = result.rows[0]?.id;
+    }
+
+    if (lastMessageId) {
+      await db.query(
+        `INSERT INTO last_read_status (username, room, is_dm, last_read_message_id, last_read_at) 
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         ON CONFLICT (username, room, is_dm) 
+         DO UPDATE SET last_read_message_id = EXCLUDED.last_read_message_id, last_read_at = CURRENT_TIMESTAMP`,
+        [username, room, isDm, lastMessageId]
+      );
+
+      // If DM, also update direct_messages read_at
+      if (isDm) {
+        const readAt = new Date().toISOString();
+        await db.query(
+          "UPDATE direct_messages SET read_at = $1 WHERE to_user = $2 AND from_user = $3 AND read_at IS NULL",
+          [readAt, username, room]
+        );
+
+        // Notify the sender that their messages were read
+        if (activeSessions && activeSessions[room]) {
+          io.to(activeSessions[room]).emit("dmRead", {
+            byUser: username,
+            at: readAt
+          });
+        }
+      }
+    }
+  } catch (err) {
+    logger.error({ err, username, room }, "markAsRead error");
+  }
+}
+
 module.exports = {
   normalizeString,
   normalizeOptionalString,
@@ -141,7 +238,9 @@ module.exports = {
   isValidRoomName,
   emitUsersInRoom,
   broadcastUserList,
+  broadcastUserUpdate,
   broadcastRoomList,
+  markAsRead,
   cleanupSocket,
   fetchLinkPreview,
 };

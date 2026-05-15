@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
 import { getAvatarStyle } from '../utils/userUtils';
-import { Smile } from 'lucide-react';
+import { Smile, Check, CheckCheck } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 
 interface MessageItemProps {
@@ -17,7 +17,7 @@ interface MessageItemProps {
 }
 
 const MessageItem = ({ message }: MessageItemProps) => {
-  const { user, theme } = useChatStore();
+  const { user, theme, currentDMUser } = useChatStore();
   const { addReaction } = useSocket();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -26,6 +26,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
   
   const isSelf = message.username === user?.username;
   const isImage = message.message.startsWith('/uploads/');
+  const isDM = !!(currentDMUser || message.to);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -104,6 +105,15 @@ const MessageItem = ({ message }: MessageItemProps) => {
             </span>
             <span>{format(new Date(message.timestamp), 'HH:mm')}</span>
             {message.edited && <span>(edited)</span>}
+            {isSelf && isDM && message.status !== 'error' && (
+              <span style={{ display: 'flex', marginLeft: '2px' }}>
+                {message.read_at ? (
+                  <CheckCheck size={14} color="#3b82f6" />
+                ) : (
+                  <Check size={14} />
+                )}
+              </span>
+            )}
           </div>
 
           <div style={{

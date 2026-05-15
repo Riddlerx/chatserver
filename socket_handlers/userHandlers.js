@@ -1,7 +1,7 @@
 const logger = require("../logger");
 const {
   emitUsersInRoom,
-  broadcastUserList,
+  broadcastUserUpdate,
   normalizeOptionalString,
 } = require("./utils");
 
@@ -9,7 +9,7 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
   socket.on("typing", async () => {
     if (!socket.room || !rooms[socket.room]) return;
     rooms[socket.room].set(socket.username, "typing");
-    await emitUsersInRoom(io, socket.room, db, rooms);
+    
     io.to(socket.room).emit("typing indicator", {
       username: socket.username,
       status: "typing",
@@ -19,7 +19,7 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
   socket.on("stop typing", async () => {
     if (!socket.room || !rooms[socket.room]) return;
     rooms[socket.room].set(socket.username, socket.status || "online");
-    await emitUsersInRoom(io, socket.room, db, rooms);
+    
     io.to(socket.room).emit("typing indicator", {
       username: socket.username,
       status: "online",
@@ -43,10 +43,9 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
 
       if (socket.room && rooms[socket.room]) {
         rooms[socket.room].set(socket.username, normalizedStatus);
-        await emitUsersInRoom(io, socket.room, db, rooms);
       }
 
-      await broadcastUserList(io, db, activeSessions);
+      await broadcastUserUpdate(io, db, socket.username, activeSessions);
       if (typeof callback === "function") callback({ success: true, message: "Status updated." });
     } catch (err) {
       logger.error({ err }, "Update status error");

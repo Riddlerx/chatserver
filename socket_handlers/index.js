@@ -1,4 +1,4 @@
-const { broadcastUserList, broadcastRoomList, emitUsersInRoom, cleanupSocket } = require("./utils");
+const { broadcastUserList, broadcastUserUpdate, broadcastRoomList, emitUsersInRoom, cleanupSocket } = require("./utils");
 const registerRoomHandlers = require("./roomHandlers");
 const registerMessageHandlers = require("./messageHandlers");
 const registerReactionHandlers = require("./reactionHandlers");
@@ -31,12 +31,13 @@ module.exports = (io, db, rooms = {}, activeSessions = {}) => {
     
     // Send initial data to the connecting user
     await broadcastRoomList(io, db);
+    await broadcastUserList(io, db, activeSessions); // Full list only on initial connection
 
     // Initialize user status
     try {
       await db.query("UPDATE users SET status = 'online' WHERE username = $1", [socket.username]);
       socket.status = "online";
-      await broadcastUserList(io, db, activeSessions);
+      await broadcastUserUpdate(io, db, socket.username, activeSessions);
     } catch (err) {
       logger.error({ err }, `Failed to initialize status for ${socket.username}`);
     }
@@ -56,12 +57,11 @@ module.exports = (io, db, rooms = {}, activeSessions = {}) => {
         } catch (err) {
           logger.error({ err }, `Failed to update status for ${socket.username} on disconnect`);
         }
-        await broadcastUserList(io, db, activeSessions);
+        await broadcastUserUpdate(io, db, socket.username, activeSessions);
 
         if (socket.room && rooms[socket.room]) {
           rooms[socket.room].delete(socket.username);
           if (rooms[socket.room].size === 0) delete rooms[socket.room];
-          else await emitUsersInRoom(io, socket.room, db, rooms);
         }
       }
 

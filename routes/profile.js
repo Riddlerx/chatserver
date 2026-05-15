@@ -30,6 +30,29 @@ function isSafeMediaUrl(value) {
 }
 
 module.exports = (db) => {
+  // Endpoint to search users
+  router.get("/search", async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+      return res.json([]);
+    }
+
+    const searchTerm = `%${q.trim()}%`;
+    try {
+      const result = await db.query(
+        `SELECT username, "displayname" AS "displayName", "profilepicture" AS "profilePicture", status 
+         FROM users 
+         WHERE username ILIKE $1 OR "displayname" ILIKE $1 
+         LIMIT 10`,
+        [searchTerm]
+      );
+      res.json(result.rows);
+    } catch (err) {
+      logger.error({ err }, "User Search DB Error");
+      res.status(500).json({ error: "Search failed." });
+    }
+  });
+
   // Endpoint to get user profile by username
   router.get("/:username", async (req, res) => {
     const { username } = req.params;

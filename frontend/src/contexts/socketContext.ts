@@ -6,6 +6,8 @@ export interface SocketContextValue {
   sendMessage: (message: string, roomId: string, parentMessageId?: number | null) => void;
   sendDM: (toUser: string, message: string) => void;
   joinRoom: (room: string, password?: string) => void;
+  loadMoreMessages: (room: string, beforeTimestamp: string) => Promise<void>;
+  loadMoreDMs: (withUser: string, beforeTimestamp: string) => Promise<void>;
   addReaction: (messageId: number, emoji: string) => void;
   removeReaction: (messageId: number, emoji: string) => void;
 }

@@ -1,6 +1,7 @@
 const {
   normalizeOptionalString,
   sanitizeMessageText,
+  markAsRead,
 } = require("./utils");
 const logger = require('../logger');
 
@@ -69,14 +70,22 @@ module.exports = (io, db, socket, activeSessions) => {
 
     try {
       const result = await db.query(
-        'SELECT dm.*, u."displayname" AS "fromDisplayName", u."profilepicture" AS "fromProfilePicture" FROM direct_messages dm LEFT JOIN users u ON dm.from_user = u.username WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1) ORDER BY timestamp ASC',
+        `SELECT dm.*, u."displayname" AS "fromDisplayName", u."profilepicture" AS "fromProfilePicture" 
+         FROM direct_messages dm 
+         LEFT JOIN users u ON dm.from_user = u.username 
+         WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1) 
+         ORDER BY timestamp DESC 
+         LIMIT 50`,
         [socket.username, normalizedUser]
       );
       const rows = result.rows;
 
+      // Mark DM as read
+      await markAsRead(io, db, socket.username, normalizedUser, true, null, activeSessions);
+
       socket.emit("dm history", {
         withUser: normalizedUser,
-        messages: rows.map((row) => ({
+        messages: rows.reverse().map((row) => ({
           id: row.id,
           username: row.from_user,
           displayName: row.fromDisplayName,
@@ -85,7 +94,9 @@ module.exports = (io, db, socket, activeSessions) => {
           message: row.message,
           timestamp: row.timestamp,
           edited: Boolean(row.edited),
+          read_at: row.read_at,
         })),
+        hasMore: rows.length === 50
       });
 
       if (typeof callback === "function") callback({ success: true });
@@ -95,6 +106,61 @@ module.exports = (io, db, socket, activeSessions) => {
         typeof callback === "function" &&
         callback({ success: false, message: "Failed to fetch DM history." })
       );
+    }
+  });
+
+  socket.on("markDMAsRead", async ({ withUser }) => {
+    const normalizedUser = normalizeOptionalString(withUser, { maxLength: 30 });
+    if (socket.username && normalizedUser) {
+      await markAsRead(io, db, socket.username, normalizedUser, true, null, activeSessions);
+    }
+  });
+
+  socket.on("loadMoreDMs", async ({ withUser, beforeTimestamp }, callback) => {
+    const normalizedUser = normalizeOptionalString(withUser, { maxLength: 30 });
+    if (!socket.username || !normalizedUser) {
+      return (
+        typeof callback === "function" &&
+        callback({ success: false, message: "Invalid user." })
+      );
+    }
+
+    try {
+      const result = await db.query(
+        `SELECT dm.*, u."displayname" AS "fromDisplayName", u."profilepicture" AS "fromProfilePicture" 
+         FROM direct_messages dm 
+         LEFT JOIN users u ON dm.from_user = u.username 
+         WHERE ((from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1))
+         AND timestamp < $3
+         ORDER BY timestamp DESC 
+         LIMIT 50`,
+        [socket.username, normalizedUser, beforeTimestamp]
+      );
+      
+      const messages = result.rows.reverse().map((row) => ({
+        id: row.id,
+        username: row.from_user,
+        displayName: row.fromDisplayName,
+        profilePicture: row.fromProfilePicture,
+        to: row.to_user,
+        message: row.message,
+        timestamp: row.timestamp,
+        edited: Boolean(row.edited),
+        read_at: row.read_at,
+      }));
+
+      if (typeof callback === "function") {
+        callback({ 
+          success: true, 
+          messages,
+          hasMore: result.rows.length === 50
+        });
+      }
+    } catch (err) {
+      logger.error({ err }, "Load more DMs DB Error");
+      if (typeof callback === "function") {
+        callback({ success: false, message: "Failed to load more DMs." });
+      }
     }
   });
 

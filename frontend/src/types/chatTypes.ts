@@ -23,6 +23,7 @@ export interface Message {
   userColor?: string;
   reactions?: { emoji: string, count: number }[];
   status?: 'sending' | 'sent' | 'error';
+  read_at?: string;
 }
 
 export interface Reaction {

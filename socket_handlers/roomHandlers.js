@@ -6,6 +6,7 @@ const {
   emitUsersInRoom,
   broadcastUserList,
   broadcastRoomList,
+  markAsRead,
 } = require("./utils");
 
 module.exports = (io, db, socket, rooms, activeSessions) => {
@@ -54,7 +55,10 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
       if (!rooms[normalizedRoom]) rooms[normalizedRoom] = new Map();
       rooms[normalizedRoom].set(socket.username, socket.status || "online");
 
-      // Fetch message history
+      // Mark room as read
+      await markAsRead(io, db, socket.username, normalizedRoom, false, null, activeSessions);
+
+      // Fetch message history (Limit to initial 50 messages)
       const messagesResult = await db.query(
         `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
                 u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
@@ -62,18 +66,23 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
          FROM messages m 
          LEFT JOIN users u ON m.username = u.username 
          WHERE m.room = $1 
-         ORDER BY m.timestamp ASC`,
+         ORDER BY m.timestamp DESC 
+         LIMIT 50`,
         [normalizedRoom]
       );
       
-      socket.emit("messageHistory", messagesResult.rows.map(m => ({
-        ...m,
-        displayName: m.displayName || m.username,
-        link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
-        edited: Boolean(m.edited),
-        is_pinned: Boolean(m.is_pinned),
-        reply_count: m.reply_count || 0
-      })));
+      socket.emit("messageHistory", {
+        room: normalizedRoom,
+        messages: messagesResult.rows.reverse().map(m => ({
+          ...m,
+          displayName: m.displayName || m.username,
+          link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
+          edited: Boolean(m.edited),
+          is_pinned: Boolean(m.is_pinned),
+          reply_count: m.reply_count || 0
+        })),
+        hasMore: messagesResult.rows.length === 50
+      });
 
       // Fetch pinned messages
       const pinnedResult = await db.query(
@@ -105,6 +114,54 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
       logger.error({ err, room }, "Error in joinRoom handler");
       if (typeof callback === "function") {
         callback({ success: false, message: "Internal server error joining room." });
+      }
+    }
+  });
+
+  socket.on("markRoomAsRead", async ({ room }) => {
+    const normalizedRoom = normalizeOptionalString(room, { maxLength: 80 });
+    if (socket.username && normalizedRoom) {
+      await markAsRead(io, db, socket.username, normalizedRoom, false, null, activeSessions);
+    }
+  });
+
+  socket.on("loadMoreMessages", async ({ room, beforeTimestamp }, callback) => {
+    try {
+      const normalizedRoom = normalizeOptionalString(room, { maxLength: 80 });
+      if (!socket.username || !normalizedRoom) return;
+
+      const messagesResult = await db.query(
+        `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
+                u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
+                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count 
+         FROM messages m 
+         LEFT JOIN users u ON m.username = u.username 
+         WHERE m.room = $1 AND m.timestamp < $2
+         ORDER BY m.timestamp DESC 
+         LIMIT 50`,
+        [normalizedRoom, beforeTimestamp]
+      );
+
+      const messages = messagesResult.rows.reverse().map(m => ({
+        ...m,
+        displayName: m.displayName || m.username,
+        link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
+        edited: Boolean(m.edited),
+        is_pinned: Boolean(m.is_pinned),
+        reply_count: m.reply_count || 0
+      }));
+
+      if (typeof callback === "function") {
+        callback({ 
+          success: true, 
+          messages,
+          hasMore: messagesResult.rows.length === 50
+        });
+      }
+    } catch (err) {
+      logger.error({ err, room }, "Error in loadMoreMessages handler");
+      if (typeof callback === "function") {
+        callback({ success: false, message: "Failed to load more messages." });
       }
     }
   });

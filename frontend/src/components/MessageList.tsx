@@ -1,28 +1,70 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState, useContext } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import MessageItem from './MessageItem';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SocketContext } from '../contexts/socketContext';
 
 const MessageList = () => {
-  const { messages, typingUsers, user, currentDMUser, dmConversations } = useChatStore();
+  const { messages, typingUsers, user, currentDMUser, dmConversations, hasMoreMessages, currentRoom } = useChatStore();
+  const socketContext = useContext(SocketContext);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const displayMessages = useMemo(
-    () => (currentDMUser ? (dmConversations[currentDMUser] || []) : messages),
-    [currentDMUser, dmConversations, messages],
-  );
+  const { displayMessages, hasMore } = useMemo(() => {
+    if (currentDMUser) {
+      const data = dmConversations[currentDMUser] || { messages: [], hasMore: false };
+      return { displayMessages: data.messages, hasMore: data.hasMore };
+    }
+    return { displayMessages: messages, hasMore: hasMoreMessages };
+  }, [currentDMUser, dmConversations, messages, hasMoreMessages]);
 
   const filteredTypingUsers = typingUsers.filter(u => u !== (user?.displayName || user?.username));
 
+  // Handle scroll to bottom on new messages
+  const lastMessageId = displayMessages.length > 0 ? displayMessages[displayMessages.length - 1].id : null;
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && !isLoadingMore) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [displayMessages, filteredTypingUsers.length]);
+  }, [lastMessageId, filteredTypingUsers.length, isLoadingMore]);
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore || !hasMore || !socketContext) return;
+    
+    setIsLoadingMore(true);
+    const firstMessage = displayMessages[0];
+    if (firstMessage) {
+      const oldScrollHeight = scrollRef.current?.scrollHeight || 0;
+      
+      if (currentDMUser) {
+        await socketContext.loadMoreDMs(currentDMUser, firstMessage.timestamp);
+      } else {
+        await socketContext.loadMoreMessages(currentRoom, firstMessage.timestamp);
+      }
+      
+      // Preserve scroll position
+      setTimeout(() => {
+        if (scrollRef.current) {
+          const newScrollHeight = scrollRef.current.scrollHeight;
+          scrollRef.current.scrollTop = newScrollHeight - oldScrollHeight;
+        }
+        setIsLoadingMore(false);
+      }, 0);
+    } else {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleScroll = () => {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0 && hasMore && !isLoadingMore) {
+      handleLoadMore();
+    }
+  };
 
   return (
     <div 
       ref={scrollRef}
+      onScroll={handleScroll}
       style={{
         flex: 1,
         overflowY: 'auto',
@@ -32,6 +74,27 @@ const MessageList = () => {
         gap: '20px'
       }}
     >
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+          <button 
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: 'var(--muted)',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            {isLoadingMore ? 'Loading...' : 'Load older messages'}
+          </button>
+        </div>
+      )}
+
       {displayMessages.length === 0 ? (
         <div style={{ 
           flex: 1, 

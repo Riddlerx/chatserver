@@ -25,12 +25,13 @@ interface ChatState {
   
   // Message State
   messages: Message[];
+  hasMoreMessages: boolean;
   currentThreadId: number | null;
   threadMessages: Message[];
   
   // DM State
   currentDMUser: string | null;
-  dmConversations: DMConversation;
+  dmConversations: { [username: string]: { messages: Message[], hasMore: boolean } };
   unreadCounts: { [key: string]: number };
   notifications: Notification[];
   theme: 'dark' | 'light';
@@ -42,14 +43,18 @@ interface ChatState {
   setRooms: (rooms: Room[]) => void;
   setOnlineUsers: (users: User[]) => void;
   updateUserProfile: (username: string, updates: Partial<User>) => void;
-  setMessages: (messages: Message[]) => void;
+  setMessages: (messages: Message[], hasMore?: boolean) => void;
+  prependMessages: (messages: Message[], hasMore: boolean) => void;
   addMessage: (message: Message) => void;
   setCurrentThreadId: (id: number | null) => void;
   setThreadMessages: (messages: Message[]) => void;
   addThreadMessage: (message: Message) => void;
   setCurrentDMUser: (username: string | null) => void;
-  setDMHistory: (username: string, messages: Message[]) => void;
+  setDMHistory: (username: string, messages: Message[], hasMore: boolean) => void;
+  prependDMMessages: (username: string, messages: Message[], hasMore: boolean) => void;
   addDMMessage: (message: Message) => void;
+  setDMRead: (username: string, at: string) => void;
+  setUnreadCounts: (counts: { [key: string]: number }) => void;
   updateMessageReactions: (messageId: number, reactions: { emoji: string, count: number }[]) => void;
   incrementUnread: (key: string) => void;
   clearUnread: (key: string) => void;
@@ -69,6 +74,7 @@ export const useChatStore = create<ChatState>((set) => ({
   onlineUsers: [],
   typingUsers: [],
   messages: [],
+  hasMoreMessages: false,
   currentThreadId: null,
   threadMessages: [],
   currentDMUser: null,
@@ -97,6 +103,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({ 
       currentRoom, 
       messages: [], 
+      hasMoreMessages: false,
       unreadCounts: { ...state.unreadCounts, [currentRoom]: 0 } 
     }));
   },
@@ -136,17 +143,20 @@ export const useChatStore = create<ChatState>((set) => ({
 
       const updatedDMConversations = { ...state.dmConversations };
       Object.keys(updatedDMConversations).forEach(userKey => {
-        updatedDMConversations[userKey] = updatedDMConversations[userKey].map(message => {
-          const user = onlineUsers.find(u => u.username === message.username);
-          if (user) {
-            return {
-              ...message,
-              displayName: user.displayName || user.username,
-              profilePicture: user.profilePicture
-            };
-          }
-          return message;
-        });
+        updatedDMConversations[userKey] = {
+          ...updatedDMConversations[userKey],
+          messages: updatedDMConversations[userKey].messages.map(message => {
+            const user = onlineUsers.find(u => u.username === message.username);
+            if (user) {
+              return {
+                ...message,
+                displayName: user.displayName || user.username,
+                profilePicture: user.profilePicture
+              };
+            }
+            return message;
+          })
+        };
       });
 
       return { 
@@ -183,17 +193,20 @@ export const useChatStore = create<ChatState>((set) => ({
         : message
     );
     const dmConversations = Object.fromEntries(
-      Object.entries(state.dmConversations).map(([key, history]) => [
+      Object.entries(state.dmConversations).map(([key, data]) => [
         key,
-        history.map((message) =>
-          message.username === username
-            ? {
-                ...message,
-                displayName: updates.displayName ?? message.displayName,
-                profilePicture: updates.profilePicture ?? message.profilePicture,
-              }
-            : message
-        ),
+        {
+          ...data,
+          messages: data.messages.map((message) =>
+            message.username === username
+              ? {
+                  ...message,
+                  displayName: updates.displayName ?? message.displayName,
+                  profilePicture: updates.profilePicture ?? message.profilePicture,
+                }
+              : message
+          )
+        }
       ])
     );
 
@@ -204,7 +217,12 @@ export const useChatStore = create<ChatState>((set) => ({
     return { user, onlineUsers, messages, threadMessages, dmConversations };
   }),
   
-  setMessages: (messages) => set({ messages }),
+  setMessages: (messages, hasMore = false) => set({ messages, hasMoreMessages: hasMore }),
+
+  prependMessages: (newMessages, hasMore) => set((state) => ({
+    messages: [...newMessages, ...state.messages],
+    hasMoreMessages: hasMore
+  })),
   
   addMessage: (message) => set((state) => {
     // Check if this message is a confirmation of an optimistic message
@@ -261,14 +279,28 @@ export const useChatStore = create<ChatState>((set) => ({
     unreadCounts: currentDMUser ? { ...state.unreadCounts, [currentDMUser]: 0 } : state.unreadCounts 
   })),
   
-  setDMHistory: (username, messages) => set((state) => ({
-    dmConversations: { ...state.dmConversations, [username]: messages }
+  setDMHistory: (username, messages, hasMore) => set((state) => ({
+    dmConversations: { ...state.dmConversations, [username]: { messages, hasMore } }
   })),
+
+  prependDMMessages: (username, newMessages, hasMore) => set((state) => {
+    const current = state.dmConversations[username] || { messages: [], hasMore: false };
+    return {
+      dmConversations: {
+        ...state.dmConversations,
+        [username]: {
+          messages: [...newMessages, ...current.messages],
+          hasMore
+        }
+      }
+    };
+  }),
   
   addDMMessage: (message) => set((state) => {
     // If it's a confirmation of an optimistic message, replace it
     const recipient = message.to || (state.currentDMUser && message.username === state.user?.username ? state.currentDMUser : message.username);
-    const history = state.dmConversations[recipient] || [];
+    const data = state.dmConversations[recipient] || { messages: [], hasMore: false };
+    const history = data.messages;
     const existingIndex = history.findIndex(m => 
       m.status === 'sending' && m.message === message.message && m.username === message.username
     );
@@ -279,7 +311,7 @@ export const useChatStore = create<ChatState>((set) => ({
       return {
         dmConversations: {
           ...state.dmConversations,
-          [recipient]: updatedHistory
+          [recipient]: { ...data, messages: updatedHistory }
         }
       };
     }
@@ -287,7 +319,7 @@ export const useChatStore = create<ChatState>((set) => ({
     const isFromMe = message.username === state.user?.username;
     const otherUser = isFromMe ? (state.currentDMUser || '') : message.username;
     const isCurrent = state.currentDMUser === otherUser;
-    const dmHistory = state.dmConversations[otherUser] || [];
+    const currentData = state.dmConversations[otherUser] || { messages: [], hasMore: false };
     const newUnread = { ...state.unreadCounts };
     const newNotifications = [...state.notifications];
 
@@ -307,12 +339,34 @@ export const useChatStore = create<ChatState>((set) => ({
     return {
       dmConversations: {
         ...state.dmConversations,
-        [otherUser]: [...dmHistory, message]
+        [otherUser]: {
+          ...currentData,
+          messages: [...currentData.messages, message]
+        }
       },
       unreadCounts: newUnread,
       notifications: newNotifications.slice(0, 50)
     };
   }),
+
+  setDMRead: (username, at) => set((state) => {
+    const data = state.dmConversations[username];
+    if (!data) return state;
+
+    return {
+      dmConversations: {
+        ...state.dmConversations,
+        [username]: {
+          ...data,
+          messages: data.messages.map(m => 
+            m.username === state.user?.username && !m.read_at ? { ...m, read_at: at } : m
+          )
+        }
+      }
+    };
+  }),
+
+  setUnreadCounts: (unreadCounts) => set({ unreadCounts }),
 
   updateMessageReactions: (messageId, reactions) => set((state) => ({
     messages: state.messages.map(m => m.id === messageId ? { ...m, reactions } : m),
