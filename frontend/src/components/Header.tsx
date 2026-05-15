@@ -1,17 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { useSocket } from '../hooks/useSocket';
-import { Hash, Settings, Bell, Search, Sun, Moon, AtSign, Trash2, CheckCircle } from 'lucide-react';
+import { Hash, Settings, Bell, Search, Sun, Moon, AtSign, Trash2, CheckCircle, Menu, Users } from 'lucide-react';
 import api from '../api';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
+import { getAvatarStyle } from '../utils/userUtils';
 import { format } from 'date-fns';
 import type { Message } from '../types/chatTypes';
 import type { Notification } from '../store/useChatStore';
 
 type SearchResult = Pick<Message, 'id' | 'username' | 'timestamp' | 'message'>;
 
-const Header = () => {
+interface HeaderProps {
+  isMobile?: boolean;
+  onOpenSidebar?: () => void;
+  onOpenUsers?: () => void;
+}
+
+const Header = ({ isMobile = false, onOpenSidebar, onOpenUsers }: HeaderProps) => {
   const { 
     currentRoom, 
     theme, 
@@ -84,7 +91,7 @@ const Header = () => {
   return (
     <header style={{
       height: '64px',
-      padding: '0 24px',
+      padding: isMobile ? '0 12px' : '0 24px',
       background: 'var(--panel-bg)',
       backdropFilter: 'blur(10px)',
       borderBottom: 'var(--glass-border)',
@@ -93,21 +100,30 @@ const Header = () => {
       justifyContent: 'space-between',
       zIndex: 5
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '8px', minWidth: 0 }}>
+        {isMobile && (
+          <button
+            onClick={onOpenSidebar}
+            style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', display: 'flex', padding: '4px' }}
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </button>
+        )}
         {currentDMUser ? (
           <>
             <AtSign size={20} color="var(--accent)" />
-            <h2 style={{ fontSize: '16px', fontWeight: 700 }}>{currentDMUser}</h2>
+            <h2 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentDMUser}</h2>
           </>
         ) : (
           <>
             <Hash size={20} color="var(--accent)" />
-            <h2 style={{ fontSize: '16px', fontWeight: 700 }}>{currentRoom}</h2>
+            <h2 style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentRoom}</h2>
           </>
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '16px', minWidth: 0 }}>
         <form onSubmit={handleSearch} style={{ position: 'relative' }}>
           <Search size={18} color="var(--muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
           <input 
@@ -122,7 +138,7 @@ const Header = () => {
               background: 'var(--input-bg)',
               color: 'var(--text)',
               fontSize: '13px',
-              width: '200px',
+              width: isMobile ? '112px' : '200px',
               outline: 'none'
             }}
           />
@@ -133,7 +149,7 @@ const Header = () => {
           onClose={() => setIsSearchOpen(false)}
           title={`Search results for "${searchQuery}"`}
         >
-          <div style={{ minWidth: '400px', maxWidth: '600px' }}>
+          <div style={{ width: isMobile ? 'calc(100vw - 48px)' : undefined, minWidth: isMobile ? undefined : '400px', maxWidth: '600px' }}>
             {isSearching ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
                 <span className="spinner" style={{ width: '32px', height: '32px' }}></span>
@@ -167,6 +183,16 @@ const Header = () => {
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
+
+        {isMobile && (
+          <button
+            onClick={onOpenUsers}
+            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}
+            aria-label="Open user list"
+          >
+            <Users size={20} />
+          </button>
+        )}
 
         {/* Notification Bell */}
         <div style={{ position: 'relative' }} ref={notificationRef}>
@@ -202,7 +228,7 @@ const Header = () => {
               position: 'absolute',
               top: 'calc(100% + 15px)',
               right: '-10px',
-              width: '320px',
+              width: isMobile ? 'min(320px, calc(100vw - 24px))' : '320px',
               background: 'var(--panel-bg)',
               backdropFilter: 'blur(20px)',
               border: 'var(--glass-border)',
@@ -263,9 +289,33 @@ const Header = () => {
 
         <button 
           onClick={() => setIsSettingsOpen(true)}
-          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            color: 'var(--muted)', 
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
           title="Profile Settings"
         >
+          {user && (
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              fontWeight: 700,
+              color: 'white',
+              ...getAvatarStyle(user.profilePicture, user.username)
+            }}>
+              {!user.profilePicture && (user.displayName || user.username || 'U')[0].toUpperCase()}
+            </div>
+          )}
           <Settings size={20} />
         </button>
       </div>

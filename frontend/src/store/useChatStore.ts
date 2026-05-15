@@ -41,6 +41,7 @@ interface ChatState {
   setCurrentRoom: (room: string) => void;
   setRooms: (rooms: Room[]) => void;
   setOnlineUsers: (users: User[]) => void;
+  updateUserProfile: (username: string, updates: Partial<User>) => void;
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   setCurrentThreadId: (id: number | null) => void;
@@ -60,9 +61,9 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set) => ({
   // Initial State
-  user: null,
+  user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null,
   token: localStorage.getItem('chatToken'),
-  isLoggedIn: false,
+  isLoggedIn: !!localStorage.getItem('chatToken'),
   currentRoom: 'general',
   rooms: [],
   onlineUsers: [],
@@ -80,6 +81,10 @@ export const useChatStore = create<ChatState>((set) => ({
   setAuth: (user, token) => {
     if (token) localStorage.setItem('chatToken', token);
     else localStorage.removeItem('chatToken');
+    
+    if (user) localStorage.setItem('user', JSON.stringify(user));
+    else localStorage.removeItem('user');
+    
     set({ user, token, isLoggedIn: !!user });
   },
 
@@ -102,8 +107,102 @@ export const useChatStore = create<ChatState>((set) => ({
     const typingUsers = onlineUsers
       .filter(u => u.status === 'typing')
       .map(u => u.displayName || u.username);
-    set({ onlineUsers, typingUsers });
+      
+    set((state) => {
+      // Sync messages with updated user profile info
+      const updatedMessages = state.messages.map(message => {
+        const user = onlineUsers.find(u => u.username === message.username);
+        if (user) {
+          return {
+            ...message,
+            displayName: user.displayName || user.username,
+            profilePicture: user.profilePicture
+          };
+        }
+        return message;
+      });
+
+      const updatedThreadMessages = state.threadMessages.map(message => {
+        const user = onlineUsers.find(u => u.username === message.username);
+        if (user) {
+          return {
+            ...message,
+            displayName: user.displayName || user.username,
+            profilePicture: user.profilePicture
+          };
+        }
+        return message;
+      });
+
+      const updatedDMConversations = { ...state.dmConversations };
+      Object.keys(updatedDMConversations).forEach(userKey => {
+        updatedDMConversations[userKey] = updatedDMConversations[userKey].map(message => {
+          const user = onlineUsers.find(u => u.username === message.username);
+          if (user) {
+            return {
+              ...message,
+              displayName: user.displayName || user.username,
+              profilePicture: user.profilePicture
+            };
+          }
+          return message;
+        });
+      });
+
+      return { 
+        onlineUsers, 
+        typingUsers, 
+        messages: updatedMessages, 
+        threadMessages: updatedThreadMessages,
+        dmConversations: updatedDMConversations
+      };
+    });
   },
+
+  updateUserProfile: (username, updates) => set((state) => {
+    const user = state.user?.username === username ? { ...state.user, ...updates } : state.user;
+    const onlineUsers = state.onlineUsers.map((onlineUser) =>
+      onlineUser.username === username ? { ...onlineUser, ...updates } : onlineUser
+    );
+    const messages = state.messages.map((message) =>
+      message.username === username
+        ? {
+            ...message,
+            displayName: updates.displayName ?? message.displayName,
+            profilePicture: updates.profilePicture ?? message.profilePicture,
+          }
+        : message
+    );
+    const threadMessages = state.threadMessages.map((message) =>
+      message.username === username
+        ? {
+            ...message,
+            displayName: updates.displayName ?? message.displayName,
+            profilePicture: updates.profilePicture ?? message.profilePicture,
+          }
+        : message
+    );
+    const dmConversations = Object.fromEntries(
+      Object.entries(state.dmConversations).map(([key, history]) => [
+        key,
+        history.map((message) =>
+          message.username === username
+            ? {
+                ...message,
+                displayName: updates.displayName ?? message.displayName,
+                profilePicture: updates.profilePicture ?? message.profilePicture,
+              }
+            : message
+        ),
+      ])
+    );
+
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    return { user, onlineUsers, messages, threadMessages, dmConversations };
+  }),
   
   setMessages: (messages) => set({ messages }),
   

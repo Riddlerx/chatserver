@@ -3,6 +3,7 @@ import Modal from './Modal';
 import api from '../api';
 import { Ban, Search } from 'lucide-react';
 import { format } from 'date-fns';
+import { getAvatarStyle } from '../utils/userUtils';
 import type { User } from '../types/chatTypes';
 
 interface AdminPanelProps {
@@ -164,13 +165,12 @@ const AdminPanel = ({ isOpen, onClose }: AdminPanelProps) => {
                       width: '36px', 
                       height: '36px', 
                       borderRadius: '10px', 
-                      background: 'var(--accent)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,
-                      backgroundImage: u.profilePicture ? `url(${u.profilePicture})` : 'none',
-                      backgroundSize: 'cover'
+                      color: 'white',
+                      ...getAvatarStyle(u.profilePicture, u.username)
                     }}>
                       {!u.profilePicture && u.username[0].toUpperCase()}
                     </div>

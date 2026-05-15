@@ -29,6 +29,16 @@ module.exports = [
         location: 'readonly',
         Notification: 'readonly',
         navigator: 'readonly',
+        // Jest globals for tests
+        describe: 'readonly',
+        test: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        jest: 'readonly',
       },
     },
     rules: {

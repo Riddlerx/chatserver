@@ -1,10 +1,10 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const { RateLimiterMemory } = require("rate-limiter-flexible");
+const logger = require('../logger');
 
 function parseAllowedOrigins(value) {
   if (!value) {
-    return ["http://localhost:3000", "http://localhost"];
+    return ["http://localhost:3000", "http://localhost", "http://127.0.0.1:3000", "http://127.0.0.1"];
   }
 
   return value
@@ -13,9 +13,26 @@ function parseAllowedOrigins(value) {
     .filter(Boolean);
 }
 
+function isDevelopmentOriginAllowed(origin) {
+  if (!origin) return false;
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return true;
+    }
+
+    return /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})$/.test(hostname);
+  } catch (_err) {
+    return false;
+  }
+}
+
 // Middleware for Socket.IO connection authentication
 const socketAuthMiddleware = (db, JWT_SECRET) => {
-  return (socket, next) => {
+  return async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error("Authentication token is missing."));
 
@@ -23,46 +40,44 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
       const decoded = jwt.verify(token, JWT_SECRET);
       
       // Fetch user from DB to verify existence and fetch latest data
-      db.get(
-        "SELECT username, displayName, profilePicture, role, status FROM users WHERE username = ?",
-        [decoded.username],
-        (err, user) => {
-          if (err) {
-            console.error("Socket Auth DB Error:", err.message);
-            return next(new Error("Server error during authentication."));
-          }
-          if (!user) {
-            return next(new Error("User not found or token invalid."));
-          }
-          
-          socket.username = user.username;
-          socket.displayName = user.displayName || user.username;
-          socket.profilePicture = user.profilePicture || null; // No default image path
-          socket.role = user.role || "user";
-          socket.status = user.status || "online"; // Default status
-          
-          next();
-        }
+      const result = await db.query(
+        'SELECT username, "displayname" AS "displayName", "profilepicture" AS "profilePicture", role, status FROM users WHERE username = $1',
+        [decoded.username]
       );
+      const user = result.rows[0];
+
+      if (!user) {
+        return next(new Error("User not found or token invalid."));
+      }
+      
+      socket.username = user.username;
+      socket.displayName = user.displayName || user.username;
+      socket.profilePicture = user.profilePicture || null; // No default image path
+      socket.role = user.role || "user";
+      socket.status = user.status || "online"; // Default status
+      
+      next();
     } catch (err) {
-      console.error("Socket Auth JWT Error:", err.message);
-      next(new Error("Invalid authentication token."));
+      if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+        logger.error({ err }, "Socket Auth JWT Error");
+        return next(new Error("Invalid authentication token."));
+      }
+      logger.error({ err }, "Socket Auth DB Error");
+      next(new Error("Server error during authentication."));
     }
   };
 };
-
-// Rate limiting for Socket.IO connections
-const connectionRateLimiter = new RateLimiterMemory({
-    points: 50,
-    duration: 15 * 60, // 15 minutes
-});
-
 
 module.exports = (server, db, rooms, activeSessions) => {
   const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
   const io = new Server(server, {
       cors: {
-          origin: allowedOrigins,
+          origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin) || (process.env.NODE_ENV !== "production" && isDevelopmentOriginAllowed(origin))) {
+              return callback(null, true);
+            }
+            return callback(new Error("Not allowed by CORS"));
+          },
           methods: ["GET", "POST"]
       },
   });

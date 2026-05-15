@@ -1,4 +1,5 @@
 const { RateLimiterMemory } = require("rate-limiter-flexible");
+const logger = require("../logger");
 const {
   resolveRoomId,
   sanitizeMessageText,
@@ -12,52 +13,19 @@ const messageRateLimiter = new RateLimiterMemory({
 });
 
 module.exports = (io, db, socket) => {
-  socket.on(
-    "sendMessage",
-    async ({ message, roomId, parentMessageId }, callback) => {
+  socket.on("sendMessage", async ({ message, roomId, parentMessageId }, callback) => {
+    try {
       const resolvedRoomId = resolveRoomId(roomId, socket);
       const cleanMessage = sanitizeMessageText(message);
-      const normalizedParentId =
-        parentMessageId == null ? null : normalizePositiveInt(parentMessageId);
+      const normalizedParentId = parentMessageId == null ? null : normalizePositiveInt(parentMessageId);
 
-      console.log(`[sendMessage] [${socket.id}] Attempt by ${socket.username}: roomId=${roomId}, resolved=${resolvedRoomId}, socketRoom=${socket.room}`);
-
-      try {
-        await messageRateLimiter.consume(
-          socket.username || socket.handshake.address,
-        );
-      } catch (_err) {
-        console.warn(`[sendMessage] [${socket.id}] Rate limit hit for ${socket.username}`);
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: "Too many messages. Please slow down.",
-          })
-        );
-      }
+      await messageRateLimiter.consume(socket.username || socket.handshake.address);
 
       if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
-        console.warn(`[sendMessage] [${socket.id}] Rejected: username=${!!socket.username}, roomSet=${!!socket.room}, match=${socket.room === resolvedRoomId}`);
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: "Unauthorized or not in the correct room.",
-          })
-        );
+        return typeof callback === "function" && callback({ success: false, message: "Unauthorized or not in the correct room." });
       }
       if (!cleanMessage) {
-        return (
-          typeof callback === "function" &&
-          callback({ success: false, message: "Message cannot be empty." })
-        );
-      }
-      if (parentMessageId != null && !normalizedParentId) {
-        return (
-          typeof callback === "function" &&
-          callback({ success: false, message: "Invalid thread target." })
-        );
+        return typeof callback === "function" && callback({ success: false, message: "Message cannot be empty." });
       }
 
       let linkPreview = null;
@@ -66,104 +34,94 @@ module.exports = (io, db, socket) => {
 
       const timestamp = new Date().toISOString();
       
-      try {
-        const { lastID } = await db.runAsync(
-          "INSERT INTO messages (username, room, message, timestamp, displayName, profilePicture, link_preview, parent_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [
-            socket.username,
-            resolvedRoomId,
-            cleanMessage,
-            timestamp,
-            socket.displayName,
-            socket.profilePicture,
-            linkPreview ? JSON.stringify(linkPreview) : null,
-            normalizedParentId,
-          ]
-        );
-
-        const newMessage = {
-          id: lastID,
-          username: socket.username,
-          room: resolvedRoomId,
-          message: cleanMessage,
+      const result = await db.query(
+        "INSERT INTO messages (username, room, message, timestamp, displayName, profilePicture, link_preview, parent_message_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+        [
+          socket.username,
+          resolvedRoomId,
+          cleanMessage,
           timestamp,
-          displayName: socket.displayName,
-          profilePicture: socket.profilePicture,
-          link_preview: linkPreview,
-          is_pinned: false,
-          parent_message_id: normalizedParentId,
-          edited: false,
-          reply_count: 0,
-        };
+          socket.displayName,
+          socket.profilePicture,
+          linkPreview ? JSON.stringify(linkPreview) : null,
+          normalizedParentId,
+        ]
+      );
+      const newMessageId = result.rows[0].id;
 
-        io.to(resolvedRoomId).emit("chat message", newMessage);
+      const newMessage = {
+        id: newMessageId,
+        username: socket.username,
+        room: resolvedRoomId,
+        message: cleanMessage,
+        timestamp,
+        displayName: socket.displayName,
+        profilePicture: socket.profilePicture,
+        link_preview: linkPreview,
+        is_pinned: false,
+        parent_message_id: normalizedParentId,
+        edited: false,
+        reply_count: 0,
+      };
 
-        if (normalizedParentId) {
-          await db.runAsync(
-            "UPDATE messages SET reply_count = reply_count + 1 WHERE id = ?",
-            [normalizedParentId]
-          );
-          
-          const row = await db.getAsync(
-            "SELECT reply_count FROM messages WHERE id = ?",
-            [normalizedParentId]
-          );
+      io.to(resolvedRoomId).emit("chat message", newMessage);
 
-          if (row) {
-            io.to(resolvedRoomId).emit("reply count updated", {
-              messageId: normalizedParentId,
-              reply_count: row.reply_count,
-            });
-          }
-          
-          io.to(`thread-${normalizedParentId}`).emit(
-            "thread message",
-            newMessage,
-          );
-        }
-
-        if (typeof callback === "function") {
-          callback({
-            success: true,
-            message: "Message sent.",
-            messageData: newMessage,
+      if (normalizedParentId) {
+        await db.query(
+          "UPDATE messages SET reply_count = reply_count + 1 WHERE id = $1",
+          [normalizedParentId]
+        );
+        
+        const res = await db.query("SELECT reply_count FROM messages WHERE id = $1", [normalizedParentId]);
+        if (res.rows[0]) {
+          io.to(resolvedRoomId).emit("reply count updated", {
+            messageId: normalizedParentId,
+            reply_count: res.rows[0].reply_count,
           });
         }
-      } catch (err) {
-        console.error("Send message DB Error:", err.message);
-        if (typeof callback === "function") {
-          callback({ success: false, message: "Failed to send message." });
-        }
+        
+        io.to(`thread-${normalizedParentId}`).emit("thread message", newMessage);
       }
-    },
-  );
+
+      if (typeof callback === "function") {
+        callback({ success: true, message: "Message sent.", messageData: newMessage });
+      }
+    } catch (err) {
+      if (err.remainingPoints === 0) {
+        return typeof callback === "function" && callback({ success: false, message: "Too many messages. Please slow down." });
+      }
+      logger.error({ err }, "Send message error");
+      if (typeof callback === "function") callback({ success: false, message: "Failed to send message." });
+    }
+  });
 
   socket.on("get thread", async ({ parent_message_id }) => {
-    const parentMessageId = normalizePositiveInt(parent_message_id);
-    if (!socket.username || !parentMessageId) return;
-
     try {
-      const messages = await db.allAsync(
-        "SELECT * FROM messages WHERE parent_message_id = ? ORDER BY timestamp ASC",
+      const parentMessageId = normalizePositiveInt(parent_message_id);
+      if (!socket.username || !parentMessageId) return;
+
+      const result = await db.query(
+        `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
+                u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
+                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count 
+         FROM messages m 
+         LEFT JOIN users u ON m.username = u.username 
+         WHERE m.parent_message_id = $1 
+         ORDER BY m.timestamp ASC`,
         [parentMessageId]
       );
 
       socket.emit("thread history", {
         parent_message_id: parentMessageId,
-        messages: messages.map((message) => ({
-          id: message.id,
-          username: message.username,
-          message: message.message,
-          timestamp: message.timestamp,
-          room: message.room,
-          displayName: message.displayName || message.username,
-          profilePicture: message.profilePicture,
-          parent_message_id: message.parent_message_id,
-        })),
+        messages: result.rows.map(m => ({
+          ...m,
+          displayName: m.displayName || m.username,
+          link_preview: m.link_preview ? JSON.parse(m.link_preview) : null
+        }))
       });
       socket.join(`thread-${parentMessageId}`);
     } catch (err) {
-      console.error("Get thread DB Error:", err.message);
+      logger.error({ err }, "Get thread error");
     }
   });
 
@@ -173,258 +131,138 @@ module.exports = (io, db, socket) => {
   });
 
   socket.on("editMessage", async ({ messageId, newMessage, roomId }, callback) => {
-    const normalizedMessageId = normalizePositiveInt(messageId);
-    const resolvedRoomId = resolveRoomId(roomId, socket);
-    const cleanMessage = sanitizeMessageText(newMessage);
-
-    if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
-      return (
-        typeof callback === "function" &&
-        callback({
-          success: false,
-          message: "Unauthorized or not in the correct room.",
-        })
-      );
-    }
-    if (!normalizedMessageId || !cleanMessage) {
-      return (
-        typeof callback === "function" &&
-        callback({ success: false, message: "Message cannot be empty." })
-      );
-    }
-
-    const timestamp = new Date().toISOString();
     try {
-      const { changes } = await db.runAsync(
-        "UPDATE messages SET message = ?, edited = 1, timestamp = ? WHERE id = ? AND username = ?",
-        [cleanMessage, timestamp, normalizedMessageId, socket.username]
+      const normalizedMessageId = normalizePositiveInt(messageId);
+      const resolvedRoomId = resolveRoomId(roomId, socket);
+      const cleanMessage = sanitizeMessageText(newMessage);
+
+      if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
+        return typeof callback === "function" && callback({ success: false, message: "Unauthorized." });
+      }
+      if (!normalizedMessageId || !cleanMessage) {
+        return typeof callback === "function" && callback({ success: false, message: "Invalid data." });
+      }
+
+      const result = await db.query(
+        "UPDATE messages SET message = $1, edited = TRUE, timestamp = CURRENT_TIMESTAMP WHERE id = $2 AND username = $3 RETURNING timestamp",
+        [cleanMessage, normalizedMessageId, socket.username]
       );
 
-      if (changes === 0) {
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: "Message not found or you are not the author.",
-          })
-        );
+      if (result.rowCount === 0) {
+        return typeof callback === "function" && callback({ success: false, message: "Message not found or unauthorized." });
       }
 
       io.to(resolvedRoomId).emit("message edited", {
         id: normalizedMessageId,
         message: cleanMessage,
-        timestamp,
+        timestamp: result.rows[0].timestamp,
         edited: true,
       });
-      if (typeof callback === "function")
-        callback({ success: true, message: "Message edited." });
+      if (typeof callback === "function") callback({ success: true, message: "Message edited." });
     } catch (err) {
-      console.error("Edit message DB Error:", err.message);
-      if (typeof callback === "function")
-        callback({ success: false, message: "Failed to edit message." });
+      logger.error({ err }, "Edit message error");
+      if (typeof callback === "function") callback({ success: false, message: "Failed to edit message." });
     }
   });
 
   socket.on("deleteMessage", async ({ messageId, roomId }, callback) => {
-    const normalizedMessageId = normalizePositiveInt(messageId);
-    const resolvedRoomId = resolveRoomId(roomId, socket);
-
-    if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
-      return (
-        typeof callback === "function" &&
-        callback({
-          success: false,
-          message: "Unauthorized or not in the correct room.",
-        })
-      );
-    }
-    if (!normalizedMessageId) {
-      return (
-        typeof callback === "function" &&
-        callback({ success: false, message: "Invalid message." })
-      );
-    }
-
     try {
-      const message = await db.getAsync(
-        "SELECT username, parent_message_id FROM messages WHERE id = ? AND room = ?",
+      const normalizedMessageId = normalizePositiveInt(messageId);
+      const resolvedRoomId = resolveRoomId(roomId, socket);
+
+      if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
+        return typeof callback === "function" && callback({ success: false, message: "Unauthorized." });
+      }
+
+      const messageResult = await db.query(
+        "SELECT username, parent_message_id FROM messages WHERE id = $1 AND room = $2",
         [normalizedMessageId, resolvedRoomId]
       );
+      const message = messageResult.rows[0];
 
       if (!message) {
-        return (
-          typeof callback === "function" &&
-          callback({ success: false, message: "Message not found." })
-        );
+        return typeof callback === "function" && callback({ success: false, message: "Message not found." });
       }
       if (message.username !== socket.username && socket.role !== "admin") {
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: "You can only delete your own messages or as an admin.",
-          })
-        );
+        return typeof callback === "function" && callback({ success: false, message: "Unauthorized." });
       }
 
-      const { changes } = await db.runAsync(
-        "DELETE FROM messages WHERE id = ? AND room = ?",
-        [normalizedMessageId, resolvedRoomId]
-      );
+      await db.query("DELETE FROM messages WHERE id = $1", [normalizedMessageId]);
 
-      if (changes === 0) {
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: "Message not found or could not be deleted.",
-          })
-        );
-      }
-
-      io.to(resolvedRoomId).emit("message deleted", {
-        id: normalizedMessageId,
-        deletedBy: socket.username,
-      });
+      io.to(resolvedRoomId).emit("message deleted", { id: normalizedMessageId, deletedBy: socket.username });
 
       if (message.parent_message_id) {
-        await db.runAsync(
-          "UPDATE messages SET reply_count = MAX(reply_count - 1, 0) WHERE id = ?",
+        await db.query(
+          "UPDATE messages SET reply_count = GREATEST(reply_count - 1, 0) WHERE id = $1",
           [message.parent_message_id]
         );
-        
-        const row = await db.getAsync(
-          "SELECT reply_count FROM messages WHERE id = ?",
-          [message.parent_message_id]
-        );
-
-        if (row) {
+        const res = await db.query("SELECT reply_count FROM messages WHERE id = $1", [message.parent_message_id]);
+        if (res.rows[0]) {
           io.to(resolvedRoomId).emit("reply count updated", {
             messageId: message.parent_message_id,
-            reply_count: row.reply_count,
+            reply_count: res.rows[0].reply_count,
           });
         }
       }
 
-      if (typeof callback === "function")
-        callback({ success: true, message: "Message deleted." });
+      if (typeof callback === "function") callback({ success: true, message: "Message deleted." });
     } catch (err) {
-      console.error("Delete message DB Error:", err.message);
-      if (typeof callback === "function")
-        callback({ success: false, message: "Failed to delete message." });
+      logger.error({ err }, "Delete message error");
+      if (typeof callback === "function") callback({ success: false, message: "Failed to delete message." });
     }
   });
 
   const handlePinState = async ({ messageId, roomId }, callback, shouldPin) => {
-    const normalizedMessageId = normalizePositiveInt(messageId);
-    const resolvedRoomId = resolveRoomId(roomId, socket);
-
-    if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
-      return (
-        typeof callback === "function" &&
-        callback({
-          success: false,
-          message: "Unauthorized or not in the correct room.",
-        })
-      );
-    }
-    if (!normalizedMessageId) {
-      return (
-        typeof callback === "function" &&
-        callback({ success: false, message: "Invalid message." })
-      );
-    }
-
     try {
-      const message = await db.getAsync(
-        "SELECT username FROM messages WHERE id = ? AND room = ?",
-        [normalizedMessageId, resolvedRoomId]
+      const normalizedMessageId = normalizePositiveInt(messageId);
+      const resolvedRoomId = resolveRoomId(roomId, socket);
+
+      if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
+        return typeof callback === "function" && callback({ success: false, message: "Unauthorized." });
+      }
+
+      const result = await db.query(
+        "UPDATE messages SET is_pinned = $1 WHERE id = $2 AND room = $3 RETURNING id",
+        [shouldPin, normalizedMessageId, resolvedRoomId]
       );
 
-      if (!message) {
-        return (
-          typeof callback === "function" &&
-          callback({ success: false, message: "Message not found." })
-        );
-      }
-      if (message.username !== socket.username && socket.role !== "admin") {
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: `You can only ${shouldPin ? "pin" : "unpin"} your own messages or as an admin.`,
-          })
-        );
+      if (result.rowCount === 0) {
+        return typeof callback === "function" && callback({ success: false, message: "Message not found or unauthorized." });
       }
 
-      const { changes } = await db.runAsync(
-        "UPDATE messages SET is_pinned = ? WHERE id = ? AND room = ?",
-        [shouldPin ? 1 : 0, normalizedMessageId, resolvedRoomId]
-      );
-
-      if (changes === 0) {
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: "Message not found or could not be updated.",
-          })
-        );
-      }
-
-      const pinnedMessages = await db.allAsync(
-        "SELECT * FROM messages WHERE room = ? AND is_pinned = 1 ORDER BY timestamp DESC",
+      const pinnedMessages = await db.query(
+        `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
+                u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
+                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count 
+         FROM messages m 
+         LEFT JOIN users u ON m.username = u.username 
+         WHERE m.room = $1 AND m.is_pinned = TRUE 
+         ORDER BY m.timestamp DESC`,
         [resolvedRoomId]
       );
 
-      io.to(resolvedRoomId).emit(
-        "pinned messages updated",
-        pinnedMessages.map((row) => ({
-          id: row.id,
-          username: row.username,
-          message: row.message,
-          timestamp: row.timestamp,
-          room: row.room,
-          displayName: row.displayName || row.username,
-          profilePicture: row.profilePicture,
-          link_preview: row.link_preview
-            ? JSON.parse(row.link_preview)
-            : null,
-          is_pinned: Boolean(row.is_pinned),
-          parent_message_id: row.parent_message_id,
-        })),
-      );
+      io.to(resolvedRoomId).emit("pinned messages updated", pinnedMessages.rows.map(m => ({
+        ...m,
+        displayName: m.displayName || m.username,
+        link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
+        is_pinned: true
+      })));
 
-      io.to(resolvedRoomId).emit(
-        shouldPin ? "messagePinned" : "messageUnpinned",
-        {
-          messageId: normalizedMessageId,
-          roomId: resolvedRoomId,
-          updatedBy: socket.username,
-        },
-      );
+      io.to(resolvedRoomId).emit(shouldPin ? "messagePinned" : "messageUnpinned", {
+        messageId: normalizedMessageId,
+        roomId: resolvedRoomId,
+        updatedBy: socket.username,
+      });
 
       if (typeof callback === "function") {
-        callback({
-          success: true,
-          message: `Message ${shouldPin ? "pinned" : "unpinned"} successfully.`,
-        });
+        callback({ success: true, message: `Message ${shouldPin ? "pinned" : "unpinned"} successfully.` });
       }
     } catch (err) {
-      console.error("Pin/unpin DB Error:", err.message);
-      if (typeof callback === "function") {
-        callback({
-          success: false,
-          message: `Failed to ${shouldPin ? "pin" : "unpin"} message.`,
-        });
-      }
+      logger.error({ err }, "Pin/unpin error");
+      if (typeof callback === "function") callback({ success: false, message: "Action failed." });
     }
   };
 
-  socket.on("pinMessage", (payload, callback) =>
-    handlePinState(payload, callback, true),
-  );
-  socket.on("unpinMessage", (payload, callback) =>
-    handlePinState(payload, callback, false),
-  );
+  socket.on("pinMessage", (payload, callback) => handlePinState(payload, callback, true));
+  socket.on("unpinMessage", (payload, callback) => handlePinState(payload, callback, false));
 };

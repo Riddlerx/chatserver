@@ -2,9 +2,10 @@ const {
   normalizeOptionalString,
   sanitizeMessageText,
 } = require("./utils");
+const logger = require('../logger');
 
 module.exports = (io, db, socket, activeSessions) => {
-  socket.on("send dm", ({ toUser, message }, callback) => {
+  socket.on("send dm", async ({ toUser, message }, callback) => {
     const normalizedRecipient = normalizeOptionalString(toUser, {
       maxLength: 30,
     });
@@ -25,39 +26,39 @@ module.exports = (io, db, socket, activeSessions) => {
     }
 
     const timestamp = new Date().toISOString();
-    db.run(
-      "INSERT INTO direct_messages (from_user, to_user, message, timestamp) VALUES (?, ?, ?, ?)",
-      [socket.username, normalizedRecipient, cleanMessage, timestamp],
-      function (err) {
-        if (err) {
-          console.error("Send DM DB Error:", err.message);
-          return (
-            typeof callback === "function" &&
-            callback({ success: false, message: "Failed to send DM." })
-          );
-        }
+    try {
+      const result = await db.query(
+        "INSERT INTO direct_messages (from_user, to_user, message, timestamp) VALUES ($1, $2, $3, $4) RETURNING id",
+        [socket.username, normalizedRecipient, cleanMessage, timestamp]
+      );
+      const lastID = result.rows[0].id;
 
-        const dmData = {
-          id: this.lastID,
-          username: socket.username,
-          displayName: socket.displayName,
-          profilePicture: socket.profilePicture,
-          to: normalizedRecipient,
-          message: cleanMessage,
-          timestamp,
-        };
+      const dmData = {
+        id: lastID,
+        username: socket.username,
+        displayName: socket.displayName,
+        profilePicture: socket.profilePicture,
+        to: normalizedRecipient,
+        message: cleanMessage,
+        timestamp,
+      };
 
-        const recipientSocketId = activeSessions[normalizedRecipient];
-        if (recipientSocketId)
-          io.to(recipientSocketId).emit("receive dm", dmData);
-        socket.emit("receive dm", dmData);
-        if (typeof callback === "function")
-          callback({ success: true, message: "DM sent.", dmData });
-      },
-    );
+      const recipientSocketId = activeSessions[normalizedRecipient];
+      if (recipientSocketId)
+        io.to(recipientSocketId).emit("receive dm", dmData);
+      socket.emit("receive dm", dmData);
+      if (typeof callback === "function")
+        callback({ success: true, message: "DM sent.", dmData });
+    } catch (err) {
+      logger.error({ err }, "Send DM DB Error");
+      return (
+        typeof callback === "function" &&
+        callback({ success: false, message: "Failed to send DM." })
+      );
+    }
   });
 
-  socket.on("get dm history", ({ withUser }, callback) => {
+  socket.on("get dm history", async ({ withUser }, callback) => {
     const normalizedUser = normalizeOptionalString(withUser, { maxLength: 30 });
     if (!socket.username || !normalizedUser) {
       return (
@@ -66,38 +67,38 @@ module.exports = (io, db, socket, activeSessions) => {
       );
     }
 
-    db.all(
-      "SELECT dm.*, u.displayName as fromDisplayName, u.profilePicture as fromProfilePicture FROM direct_messages dm LEFT JOIN users u ON dm.from_user = u.username WHERE (from_user = ? AND to_user = ?) OR (from_user = ? AND to_user = ?) ORDER BY timestamp ASC",
-      [socket.username, normalizedUser, normalizedUser, socket.username],
-      (err, rows) => {
-        if (err) {
-          console.error("Get DM history DB Error:", err.message);
-          return (
-            typeof callback === "function" &&
-            callback({ success: false, message: "Failed to fetch DM history." })
-          );
-        }
+    try {
+      const result = await db.query(
+        'SELECT dm.*, u."displayname" AS "fromDisplayName", u."profilepicture" AS "fromProfilePicture" FROM direct_messages dm LEFT JOIN users u ON dm.from_user = u.username WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1) ORDER BY timestamp ASC',
+        [socket.username, normalizedUser]
+      );
+      const rows = result.rows;
 
-        socket.emit("dm history", {
-          withUser: normalizedUser,
-          messages: rows.map((row) => ({
-            id: row.id,
-            username: row.from_user,
-            displayName: row.fromDisplayName,
-            profilePicture: row.fromProfilePicture,
-            to: row.to_user,
-            message: row.message,
-            timestamp: row.timestamp,
-            edited: Boolean(row.edited),
-          })),
-        });
+      socket.emit("dm history", {
+        withUser: normalizedUser,
+        messages: rows.map((row) => ({
+          id: row.id,
+          username: row.from_user,
+          displayName: row.fromDisplayName,
+          profilePicture: row.fromProfilePicture,
+          to: row.to_user,
+          message: row.message,
+          timestamp: row.timestamp,
+          edited: Boolean(row.edited),
+        })),
+      });
 
-        if (typeof callback === "function") callback({ success: true });
-      },
-    );
+      if (typeof callback === "function") callback({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Get DM history DB Error");
+      return (
+        typeof callback === "function" &&
+        callback({ success: false, message: "Failed to fetch DM history." })
+      );
+    }
   });
 
-  socket.on("edit dm", ({ messageId, newMessage }, callback) => {
+  socket.on("edit dm", async ({ messageId, newMessage }, callback) => {
     const { normalizePositiveInt } = require("./utils");
     const normalizedMessageId = normalizePositiveInt(messageId);
     const cleanMessage = sanitizeMessageText(newMessage);
@@ -109,55 +110,55 @@ module.exports = (io, db, socket, activeSessions) => {
       );
     }
 
-    db.get(
-      "SELECT from_user, to_user FROM direct_messages WHERE id = ?",
-      [normalizedMessageId],
-      (err, dm) => {
-        if (err || !dm) {
-          return (
-            typeof callback === "function" &&
-            callback({ success: false, message: "DM not found." })
-          );
-        }
-        if (dm.from_user !== socket.username) {
-          return (
-            typeof callback === "function" &&
-            callback({ success: false, message: "Unauthorized." })
-          );
-        }
+    try {
+      const result = await db.query(
+        "SELECT from_user, to_user FROM direct_messages WHERE id = $1",
+        [normalizedMessageId]
+      );
+      const dm = result.rows[0];
 
-        const timestamp = new Date().toISOString();
-        db.run(
-          "UPDATE direct_messages SET message = ?, edited = 1, timestamp = ? WHERE id = ?",
-          [cleanMessage, timestamp, normalizedMessageId],
-          function (updateErr) {
-            if (updateErr) {
-              return (
-                typeof callback === "function" &&
-                callback({ success: false, message: "Failed to update DM." })
-              );
-            }
-
-            const updateData = {
-              id: normalizedMessageId,
-              message: cleanMessage,
-              timestamp,
-              edited: true,
-            };
-
-            // Notify both parties
-            const recipientSocketId = activeSessions[dm.to_user];
-            if (recipientSocketId) io.to(recipientSocketId).emit("dm edited", updateData);
-            socket.emit("dm edited", updateData);
-
-            if (typeof callback === "function") callback({ success: true });
-          },
+      if (!dm) {
+        return (
+          typeof callback === "function" &&
+          callback({ success: false, message: "DM not found." })
         );
-      },
-    );
+      }
+      if (dm.from_user !== socket.username) {
+        return (
+          typeof callback === "function" &&
+          callback({ success: false, message: "Unauthorized." })
+        );
+      }
+
+      const timestamp = new Date().toISOString();
+      await db.query(
+        "UPDATE direct_messages SET message = $1, edited = true, timestamp = $2 WHERE id = $3",
+        [cleanMessage, timestamp, normalizedMessageId]
+      );
+
+      const updateData = {
+        id: normalizedMessageId,
+        message: cleanMessage,
+        timestamp,
+        edited: true,
+      };
+
+      // Notify both parties
+      const recipientSocketId = activeSessions[dm.to_user];
+      if (recipientSocketId) io.to(recipientSocketId).emit("dm edited", updateData);
+      socket.emit("dm edited", updateData);
+
+      if (typeof callback === "function") callback({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Edit DM DB Error");
+      return (
+        typeof callback === "function" &&
+        callback({ success: false, message: "Failed to update DM." })
+      );
+    }
   });
 
-  socket.on("delete dm", ({ messageId }, callback) => {
+  socket.on("delete dm", async ({ messageId }, callback) => {
     const { normalizePositiveInt } = require("./utils");
     const normalizedMessageId = normalizePositiveInt(messageId);
 
@@ -168,44 +169,44 @@ module.exports = (io, db, socket, activeSessions) => {
       );
     }
 
-    db.get(
-      "SELECT from_user, to_user FROM direct_messages WHERE id = ?",
-      [normalizedMessageId],
-      (err, dm) => {
-        if (err || !dm) {
-          return (
-            typeof callback === "function" &&
-            callback({ success: false, message: "DM not found." })
-          );
-        }
-        if (dm.from_user !== socket.username && socket.role !== "admin") {
-          return (
-            typeof callback === "function" &&
-            callback({ success: false, message: "Unauthorized." })
-          );
-        }
+    try {
+      const result = await db.query(
+        "SELECT from_user, to_user FROM direct_messages WHERE id = $1",
+        [normalizedMessageId]
+      );
+      const dm = result.rows[0];
 
-        db.run(
-          "DELETE FROM direct_messages WHERE id = ?",
-          [normalizedMessageId],
-          function (deleteErr) {
-            if (deleteErr) {
-              return (
-                typeof callback === "function" &&
-                callback({ success: false, message: "Failed to delete DM." })
-              );
-            }
-
-            // Notify both parties
-            const recipientSocketId = activeSessions[dm.to_user];
-            if (recipientSocketId)
-              io.to(recipientSocketId).emit("dm deleted", { id: normalizedMessageId });
-            socket.emit("dm deleted", { id: normalizedMessageId });
-
-            if (typeof callback === "function") callback({ success: true });
-          },
+      if (!dm) {
+        return (
+          typeof callback === "function" &&
+          callback({ success: false, message: "DM not found." })
         );
-      },
-    );
+      }
+      if (dm.from_user !== socket.username && socket.role !== "admin") {
+        return (
+          typeof callback === "function" &&
+          callback({ success: false, message: "Unauthorized." })
+        );
+      }
+
+      await db.query(
+        "DELETE FROM direct_messages WHERE id = $1",
+        [normalizedMessageId]
+      );
+
+      // Notify both parties
+      const recipientSocketId = activeSessions[dm.to_user];
+      if (recipientSocketId)
+        io.to(recipientSocketId).emit("dm deleted", { id: normalizedMessageId });
+      socket.emit("dm deleted", { id: normalizedMessageId });
+
+      if (typeof callback === "function") callback({ success: true });
+    } catch (err) {
+      logger.error({ err }, "Delete DM DB Error");
+      return (
+        typeof callback === "function" &&
+        callback({ success: false, message: "Failed to delete DM." })
+      );
+    }
   });
 };

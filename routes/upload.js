@@ -4,6 +4,14 @@ const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
 const router = express.Router();
+const allowedMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+]);
+const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
 
 const uploadDirectory = path.join(__dirname, "..", "public", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
@@ -25,25 +33,42 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 1024 * 1024 * 50 }, // 50MB file size limit (matching nginx)
   fileFilter: (req, file, cb) => {
-    // Allow only images
-    const filetypes = /jpeg|jpg|png|gif/;
-    const mimetype = filetypes.test(file.mimetype);
-    const extname = filetypes.test(
-      path.extname(file.originalname).toLowerCase(),
-    );
+    const extension = path.extname(file.originalname).toLowerCase();
+    const mimetype = allowedMimeTypes.has(file.mimetype);
+    const extname = allowedExtensions.has(extension);
 
     if (mimetype && extname) {
       return cb(null, true);
     }
-    cb(new Error("File upload only supports images (jpeg, jpg, png, gif)"));
+    cb(
+      new multer.MulterError(
+        "LIMIT_UNEXPECTED_FILE",
+        "File upload only supports jpg, jpeg, png, gif, webp, and avif images",
+      ),
+    );
   },
 });
 
-router.post("/", upload.single("file"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "Please select a file." });
-  }
-  res.json({ filePath: `/uploads/${req.file.filename}` });
+router.post("/", (req, res) => {
+  upload.single("file")(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      const message =
+        err.message === "Unexpected field"
+          ? "File upload only supports jpg, jpeg, png, gif, webp, and avif images."
+          : err.message;
+      return res.status(400).json({ error: message });
+    }
+
+    if (err) {
+      return res.status(400).json({ error: err.message || "Upload failed." });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "Please select a file." });
+    }
+
+    return res.json({ filePath: `/uploads/${req.file.filename}` });
+  });
 });
 
 module.exports = router;

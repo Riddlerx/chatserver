@@ -4,6 +4,7 @@ const registerMessageHandlers = require("./messageHandlers");
 const registerReactionHandlers = require("./reactionHandlers");
 const registerDMHandlers = require("./dmHandlers");
 const registerUserHandlers = require("./userHandlers");
+const logger = require("../logger");
 
 module.exports = (io, db, rooms = {}, activeSessions = {}) => {
   const { RateLimiterMemory } = require("rate-limiter-flexible");
@@ -19,31 +20,26 @@ module.exports = (io, db, rooms = {}, activeSessions = {}) => {
         try {
             await connectionRateLimiter.consume(address);
         } catch (_err) {
-            console.warn(`Connection rate limit exceeded for ${address}`);
+            logger.warn(`Connection rate limit exceeded for ${address}`);
             socket.disconnect(true);
             return;
         }
     }
 
-    console.log(`User connected: ${socket.id}`);
+    logger.info(`User connected: ${socket.id}`);
     activeSessions[socket.username] = socket.id;
     
     // Send initial data to the connecting user
-    broadcastRoomList(io, db);
+    await broadcastRoomList(io, db);
 
     // Initialize user status
-    db.run(
-      "UPDATE users SET status = 'online' WHERE username = ?",
-      [socket.username],
-      (err) => {
-        if (err) {
-          console.error(`Failed to initialize status for ${socket.username}:`, err.message);
-        } else {
-          socket.status = "online";
-          broadcastUserList(io, db, activeSessions);
-        }
-      },
-    );
+    try {
+      await db.query("UPDATE users SET status = 'online' WHERE username = $1", [socket.username]);
+      socket.status = "online";
+      await broadcastUserList(io, db, activeSessions);
+    } catch (err) {
+      logger.error({ err }, `Failed to initialize status for ${socket.username}`);
+    }
 
     // Register modular handlers
     registerRoomHandlers(io, db, socket, rooms, activeSessions);
@@ -52,18 +48,20 @@ module.exports = (io, db, rooms = {}, activeSessions = {}) => {
     registerDMHandlers(io, db, socket, activeSessions);
     registerUserHandlers(io, db, socket, rooms, activeSessions);
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       if (socket.username) {
         delete activeSessions[socket.username];
-        db.run("UPDATE users SET status = 'offline' WHERE username = ?", [socket.username], (err) => {
-          if (err) console.error(`Failed to update status for ${socket.username} on disconnect:`, err.message);
-        });
-        broadcastUserList(io, db, activeSessions);
+        try {
+          await db.query("UPDATE users SET status = 'offline' WHERE username = $1", [socket.username]);
+        } catch (err) {
+          logger.error({ err }, `Failed to update status for ${socket.username} on disconnect`);
+        }
+        await broadcastUserList(io, db, activeSessions);
 
         if (socket.room && rooms[socket.room]) {
           rooms[socket.room].delete(socket.username);
           if (rooms[socket.room].size === 0) delete rooms[socket.room];
-          else emitUsersInRoom(io, socket.room, db, rooms);
+          else await emitUsersInRoom(io, socket.room, db, rooms);
         }
       }
 

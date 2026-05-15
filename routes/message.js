@@ -1,5 +1,6 @@
 const express = require("express");
 const { query, validationResult } = require('express-validator');
+const logger = require("../logger");
 
 const router = express.Router();
 
@@ -17,13 +18,20 @@ module.exports = (db) => {
     const searchTerm = `%${q}%`;
 
     try {
-      const rows = await db.allAsync(
-          "SELECT * FROM messages WHERE room = ? AND message LIKE ? ORDER BY timestamp DESC LIMIT 50",
+      const result = await db.query(
+          `SELECT m.*, u.displayName AS "displayName", u.profilePicture AS "profilePicture" 
+           FROM messages m 
+           LEFT JOIN users u ON m.username = u.username 
+           WHERE m.room = $1 AND m.message LIKE $2 
+           ORDER BY m.timestamp DESC LIMIT 50`,
           [room, searchTerm]
       );
-      res.json(rows || []);
+      res.json(result.rows.map(m => ({
+        ...m,
+        displayName: m.displayName || m.username
+      })));
     } catch (err) {
-      console.error("Search error:", err);
+      logger.error({ err }, "Search error");
       res.status(500).json({ error: "Internal server error during search" });
     }
   });

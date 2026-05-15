@@ -3,6 +3,7 @@ const axios = require("axios");
 const { parse } = require("node-html-parser");
 const { URL } = require("url");
 const sanitizeHtml = require("sanitize-html");
+const logger = require("../logger");
 
 function normalizeString(value, { maxLength = 500, trim = true } = {}) {
   if (typeof value !== "string") return null;
@@ -42,11 +43,8 @@ function isValidRoomName(name) {
 
 async function emitUsersInRoom(io, room, db, rooms) {
   try {
-    const users = await db.allAsync(
-      "SELECT username, displayName, profilePicture, status FROM users",
-      []
-    );
-
+    const result = await db.query('SELECT username, "displayname" AS "displayName", "profilepicture" AS "profilePicture", status FROM users');
+    const users = result.rows;
     const roomStatuses = rooms[room] || new Map();
     
     const usersInRoom = users.map((user) => {
@@ -56,26 +54,19 @@ async function emitUsersInRoom(io, room, db, rooms) {
         status = roomStatuses.get(user.username) || user.status || "online";
         if (status === "offline") status = "online";
       }
-      return {
-        ...user,
-        isOnline,
-        status
-      };
+      return { ...user, isOnline, status };
     });
 
     io.to(room).emit("userList", usersInRoom);
   } catch (err) {
-    console.error("emitUsersInRoom DB Error:", err.message);
+    logger.error({ err, room }, "emitUsersInRoom error");
   }
 }
 
 async function broadcastUserList(io, db, activeSessions) {
   try {
-    const users = await db.allAsync(
-      "SELECT username, displayName, profilePicture, status FROM users",
-      []
-    );
-
+    const result = await db.query('SELECT username, "displayname" AS "displayName", "profilepicture" AS "profilePicture", status FROM users');
+    const users = result.rows;
     const onlineUsernames = new Set(Object.keys(activeSessions));
     
     const usersWithOnlineStatus = users.map((user) => {
@@ -85,28 +76,23 @@ async function broadcastUserList(io, db, activeSessions) {
         status = user.status || "online";
         if (status === "offline") status = "online";
       }
-      return {
-        ...user,
-        isOnline,
-        status
-      };
+      return { ...user, isOnline, status };
     });
 
     io.emit("userList", usersWithOnlineStatus);
   } catch (err) {
-    console.error("broadcastUserList DB Error:", err.message);
+    logger.error({ err }, "broadcastUserList error");
   }
 }
 
 async function broadcastRoomList(io, db) {
   try {
-    const roomRows = await db.allAsync(
-      "SELECT name, (password IS NOT NULL AND password != '') as is_private FROM custom_rooms ORDER BY name ASC",
-      []
+    const result = await db.query(
+      "SELECT name, (password IS NOT NULL AND password != '') as is_private FROM custom_rooms ORDER BY name ASC"
     );
-    io.emit("custom rooms", roomRows || []);
+    io.emit("custom rooms", result.rows || []);
   } catch (err) {
-    console.error("broadcastRoomList DB Error:", err.message);
+    logger.error({ err }, "broadcastRoomList error");
   }
 }
 
@@ -129,31 +115,19 @@ async function fetchLinkPreview(url) {
       });
     });
 
-    const isPrivate =
-      /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.)/.test(ip) ||
-      ip === "::1";
+    const isPrivate = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.)/.test(ip) || ip === "::1";
     if (isPrivate) throw new Error("Private/Local IP access forbidden.");
 
-    const response = await axios.get(url, {
-      timeout: 5000,
-      maxRedirects: 3,
-      responseType: "text",
-    });
+    const response = await axios.get(url, { timeout: 5000, maxRedirects: 3, responseType: "text" });
     const root = parse(response.data);
     return {
-      title:
-        root.querySelector("meta[property='og:title']")?.getAttribute("content") ||
-        root.querySelector("title")?.text ||
-        url,
-      description:
-        root.querySelector("meta[name='description']")?.getAttribute("content") ||
-        root.querySelector("meta[property='og:description']")?.getAttribute("content") ||
-        "",
+      title: root.querySelector("meta[property='og:title']")?.getAttribute("content") || root.querySelector("title")?.text || url,
+      description: root.querySelector("meta[name='description']")?.getAttribute("content") || root.querySelector("meta[property='og:description']")?.getAttribute("content") || "",
       image: root.querySelector("meta[property='og:image']")?.getAttribute("content") || "",
       url,
     };
   } catch (error) {
-    console.error("Link preview error:", error.message);
+    logger.debug({ error: error.message, url }, "Link preview failed");
     return null;
   }
 }

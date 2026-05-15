@@ -17,7 +17,7 @@ A modern, real-time chat application with channels, direct messages, and interac
 
 - **Node.js**: v18 or higher recommended.
 - **npm**: v9 or higher.
-- **SQLite3**: Handled automatically via `better-sqlite3`.
+- **PostgreSQL**: A running PostgreSQL database instance.
 
 ## 📦 Setup
 
@@ -32,12 +32,16 @@ A modern, real-time chat application with channels, direct messages, and interac
    Create a `.env` file in the root directory:
    ```env
    JWT_SECRET=your_super_secret_key
+   DATABASE_URL=postgresql://user:password@localhost:5432/chatserver
    PORT=3000
    NODE_ENV=development
    ```
 
 3. **Database Setup**:
-   The migrations will run automatically when you start the server for the first time.
+   Initialize the PostgreSQL database and run migrations:
+   ```bash
+   npm run init-pg-db
+   ```
 
 ## 🏃 Running the App
 

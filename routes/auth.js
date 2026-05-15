@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
+const logger = require('../logger');
 
 
 
@@ -35,23 +36,17 @@ module.exports = (db) => {
 
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
-      db.run(
-        "INSERT INTO users (username, password, displayName, created_at) VALUES (?, ?, ?, ?)",
-        [username, hashedPassword, displayName || username, new Date().toISOString()],
-        function (err) {
-          if (err) {
-            if (err.message.includes("UNIQUE")) {
-              return res.status(400).json({ error: "Username already taken" });
-            }
-            console.error("Registration DB Error:", err.message);
-            return res.status(500).json({ error: "Registration failed" });
-          }
-          res.json({ success: true, username });
-        },
+      await db.query(
+        "INSERT INTO users (username, password, displayName, created_at) VALUES ($1, $2, $3, $4)",
+        [username, hashedPassword, displayName || username, new Date().toISOString()]
       );
+      res.json({ success: true, username });
     } catch (err) {
-      console.error("Registration Server Error:", err.message);
-      res.status(500).json({ error: "Server error" });
+      if (err.code === '23505') { // PostgreSQL unique violation code
+        return res.status(400).json({ error: "Username already taken" });
+      }
+      logger.error({ err }, "Registration Error");
+      res.status(500).json({ error: "Registration failed" });
     }
   });
 
@@ -65,57 +60,55 @@ module.exports = (db) => {
     const username = req.body.username.trim();
     const { password } = req.body;
 
-    db.get("SELECT * FROM banned_users WHERE username = ?", [username], (err, bannedUser) => {
-        if (err) {
-            console.error("Login banned user check DB Error:", err.message);
-            return res.status(500).json({ error: "Server error during login."});
-        }
-        if (bannedUser) {
-            return res.status(403).json({ error: `You are banned. Reason: ${bannedUser.reason}`});
-        }
+    try {
+      const bannedResult = await db.query("SELECT * FROM banned_users WHERE username = $1", [username]);
+      const bannedUser = bannedResult.rows[0];
+      
+      if (bannedUser) {
+        return res.status(403).json({ error: `You are banned. Reason: ${bannedUser.reason}` });
+      }
 
-        db.get(
-          "SELECT username, password, role, displayName, profilePicture FROM users WHERE username = ?",
-          [username],
-          async (err, user) => {
-            if (err) {
-              console.error("Login user lookup DB Error:", err.message);
-              return res.status(500).json({ error: "Database error" });
-            }
-            if (!user) {
-              console.log(`Login failed: User "${username}" not found.`);
-              return res.status(401).json({ error: "Invalid credentials" });
-            }
+      const userResult = await db.query(
+        'SELECT username, password, role, "displayname" AS "displayName", "profilepicture" AS "profilePicture" FROM users WHERE username = $1',
+        [username]
+      );
+      const user = userResult.rows[0];
 
-            const valid = await bcrypt.compare(password, user.password);
-            if (!valid) {
-              console.log(`Login failed: Incorrect password for user "${username}".`);
-              return res.status(401).json({ error: "Invalid credentials" });
-            }
+      if (!user) {
+        logger.info(`Login failed: User "${username}" not found.`);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
 
-            console.log(`Login successful: "${username}"`);
-            const token = jwt.sign(
-              { 
-                username: user.username, 
-                role: user.role,
-                displayName: user.displayName,
-                profilePicture: user.profilePicture
-              },
-              process.env.JWT_SECRET,
-              { expiresIn: "7d" },
-            );
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        logger.info(`Login failed: Incorrect password for user "${username}".`);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
 
-            res.json({ 
-              success: true, 
-              token, 
-              username: user.username,
-              role: user.role,
-              displayName: user.displayName,
-              profilePicture: user.profilePicture
-            });
-          },
-        );
-    });
+      logger.info(`Login successful: "${username}"`);
+      const token = jwt.sign(
+        { 
+          username: user.username, 
+          role: user.role,
+          displayName: user.displayName,
+          profilePicture: user.profilePicture
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" },
+      );
+
+      res.json({ 
+        success: true, 
+        token, 
+        username: user.username,
+        role: user.role,
+        displayName: user.displayName,
+        profilePicture: user.profilePicture
+      });
+    } catch (err) {
+      logger.error({ err }, "Login Error");
+      res.status(500).json({ error: "Internal server error during login" });
+    }
   });
 
   return router;

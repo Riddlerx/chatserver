@@ -6,7 +6,12 @@ import ProfileModal from './ProfileModal';
 import AdminPanel from './AdminPanel';
 import { getAvatarStyle } from '../utils/userUtils';
 
-const Sidebar = () => {
+interface SidebarProps {
+  mobile?: boolean;
+  onNavigate?: () => void;
+}
+
+const Sidebar = ({ mobile = false, onNavigate }: SidebarProps) => {
   const { 
     rooms, 
     currentRoom, 
@@ -26,6 +31,7 @@ const Sidebar = () => {
     setCurrentDMUser(null);
     joinRoom(roomName);
     setCurrentRoom(roomName);
+    onNavigate?.();
   };
 
   const handleDMClick = (username: string) => {
@@ -34,6 +40,7 @@ const Sidebar = () => {
     if (socket) {
       socket.emit('get dm history', { withUser: username });
     }
+    onNavigate?.();
   };
 
   const Badge = ({ count }: { count: number }) => {
@@ -57,13 +64,15 @@ const Sidebar = () => {
 
   return (
     <aside style={{
-      width: '260px',
+      width: mobile ? '100%' : '260px',
+      height: mobile ? '100dvh' : 'auto',
       background: 'var(--sidebar-bg)',
       backdropFilter: 'blur(12px)',
       borderRight: 'var(--glass-border)',
       display: 'flex',
       flexDirection: 'column',
-      padding: '24px 16px'
+      padding: mobile ? '20px 14px' : '24px 16px',
+      boxShadow: mobile ? '18px 0 36px rgba(0,0,0,0.28)' : 'none'
     }}>
       <div style={{ marginBottom: '32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em' }}>CHAT SERVER</h1>

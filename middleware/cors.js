@@ -1,15 +1,26 @@
 const cors = require('cors');
 const { ALLOWED_ORIGINS, NODE_ENV } = require('../config');
 
+function isDevelopmentOriginAllowed(origin) {
+  if (!origin) return false;
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return true;
+    }
+
+    return /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})$/.test(hostname);
+  } catch (_err) {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow if:
-    // 1. No origin (like mobile apps or curl)
-    // 2. Origin is in our explicit allowed list
-    // 3. It's a localhost origin during development
-    const isLocalhost = origin && (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1'));
-    
-    if (!origin || ALLOWED_ORIGINS.includes(origin) || (NODE_ENV === 'development' && isLocalhost)) {
+    if (!origin || ALLOWED_ORIGINS.includes(origin) || (NODE_ENV === 'development' && isDevelopmentOriginAllowed(origin))) {
       callback(null, true);
     } else {
       console.error("Blocked by CORS:", origin);

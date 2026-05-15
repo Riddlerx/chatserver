@@ -9,8 +9,15 @@ export function generateUserColor(username: string) {
 
 export function getAvatarStyle(profilePicture?: string, username?: string) {
   if (profilePicture) {
+    // If it's already a full URL or starts with /, use it directly. Otherwise, prepend /uploads/
+    const imageUrl = profilePicture.startsWith('http') || profilePicture.startsWith('/') 
+      ? profilePicture 
+      : `/uploads/${profilePicture}`;
+      
+    console.log("Avatar URL generated:", imageUrl);
+      
     return {
-      backgroundImage: `url("${profilePicture}")`,
+      backgroundImage: `url("${imageUrl}")`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     };

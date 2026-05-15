@@ -3,6 +3,7 @@ import Modal from './Modal';
 import { useChatStore } from '../store/useChatStore';
 import api from '../api';
 import { Camera, Save } from 'lucide-react';
+import axios from 'axios';
 import { getAvatarStyle } from '../utils/userUtils';
 import type { User } from '../types/chatTypes';
 
@@ -19,27 +20,30 @@ interface ProfileData extends User {
 }
 
 const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) => {
-  const { user: currentUser, setAuth, token } = useChatStore();
+  const { user: currentUser, setAuth, token, updateUserProfile } = useChatStore();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [status, setStatus] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOwnProfile = currentUser?.username === targetUsername;
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && targetUsername) {
       const fetchProfile = async () => {
         setLoading(true);
         try {
           const response = await api.get<ProfileData>(`/profile/${targetUsername}`);
-          setProfile(response.data);
-          setDisplayName(response.data.displayName || '');
-          setBio(response.data.bio || '');
-          setStatus(response.data.status || '');
+          const data = response.data;
+          setProfile(data);
+          setDisplayName(data.displayName || data.username || '');
+          setBio(data.bio || '');
+          setStatus(data.status || '');
         } catch (err) {
           console.error('Failed to fetch profile', err);
         } finally {
@@ -58,6 +62,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
         bio,
         status
       });
+      updateUserProfile(targetUsername, { displayName, status });
       if (isOwnProfile && currentUser) {
         setAuth({ ...currentUser, displayName, profilePicture: profile?.profilePicture ?? currentUser.profilePicture }, token);
       }
@@ -75,6 +80,8 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
 
     const formData = new FormData();
     formData.append('file', file);
+    setUploadError('');
+    setUploadingAvatar(true);
 
     try {
       const response = await api.post('/upload', formData, {
@@ -85,12 +92,21 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
           profilePicture: response.data.filePath
         });
         setProfile((prev) => (prev ? { ...prev, profilePicture: response.data.filePath } : prev));
+        updateUserProfile(targetUsername, { profilePicture: response.data.filePath });
         if (isOwnProfile && currentUser) {
           setAuth({ ...currentUser, profilePicture: response.data.filePath }, token);
         }
       }
     } catch (err) {
       console.error('Avatar upload failed', err);
+      if (axios.isAxiosError(err)) {
+        setUploadError(err.response?.data?.error || 'Avatar upload failed.');
+      } else {
+        setUploadError('Avatar upload failed.');
+      }
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
     }
   };
 
@@ -104,7 +120,9 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
         ) : profile ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
             <div style={{ position: 'relative' }}>
-              <div style={{
+              <div 
+                key={profile.profilePicture}
+                style={{
                 width: '100px',
                 height: '100px',
                 borderRadius: '32px',
@@ -117,11 +135,12 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
                 boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
                 ...getAvatarStyle(profile.profilePicture, profile.username)
               }}>
-                {!profile.profilePicture && (profile.displayName || profile.username)[0].toUpperCase()}
+                {!profile.profilePicture && (profile.displayName || profile.username || 'U')[0].toUpperCase()}
               </div>
               {isOwnProfile && (
                 <button 
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
                   style={{
                     position: 'absolute',
                     bottom: '-4px',
@@ -135,11 +154,12 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'var(--text)',
-                    cursor: 'pointer',
+                    cursor: uploadingAvatar ? 'wait' : 'pointer',
+                    opacity: uploadingAvatar ? 0.7 : 1,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                   }}
                 >
-                  <Camera size={16} />
+                  {uploadingAvatar ? <span className="spinner" style={{ width: '16px', height: '16px' }}></span> : <Camera size={16} />}
                   <input 
                     type="file" 
                     ref={fileInputRef} 
@@ -150,6 +170,23 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
                 </button>
               )}
             </div>
+
+            {uploadError && (
+              <div
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 99, 132, 0.12)',
+                  border: '1px solid rgba(255, 99, 132, 0.3)',
+                  color: '#ffb3c1',
+                  fontSize: '13px',
+                  textAlign: 'center'
+                }}
+              >
+                {uploadError}
+              </div>
+            )}
 
             <div style={{ textAlign: 'center', width: '100%' }}>
               {isOwnProfile ? (
@@ -227,8 +264,8 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
                 </div>
               ) : (
                 <>
-                  <h2 style={{ margin: '0 0 4px 0' }}>{profile.displayName || profile.username}</h2>
-                  <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '16px' }}>@{profile.username}</p>
+                  <h2 style={{ margin: '0 0 4px 0' }}>{profile.displayName || profile.username || 'Unknown User'}</h2>
+                  <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '16px' }}>@{profile.username || 'unknown'}</p>
                   
                   {profile.status && (
                     <div style={{ 
@@ -254,7 +291,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
             </div>
           </div>
         ) : (
-          <p>User not found.</p>
+          <p style={{ textAlign: 'center', padding: '20px' }}>User not found.</p>
         )}
       </div>
     </Modal>

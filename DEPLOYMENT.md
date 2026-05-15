@@ -2,33 +2,60 @@
 
 ## Database Setup
 
-Since SQLite database files are in `.gitignore`, you need to initialize the database on the server.
+This project uses PostgreSQL. You need to have a PostgreSQL instance running.
 
-### Method 1: Auto-Initialization (Recommended)
-The server automatically detects if the database exists and initializes it on first run.
+### 1. Install PostgreSQL on Oracle Cloud VM
 
-### Method 2: Manual Initialization
+#### For Ubuntu:
 ```bash
-# After deployment, SSH into your Oracle Cloud instance
-cd /path/to/your/app
-npm run init-db
+sudo apt update
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl enable --now postgresql
 ```
 
-### Method 3: Using Deploy Script
+#### For Oracle Linux / RHEL:
 ```bash
-npm run deploy
+sudo dnf install -y postgresql-server postgresql-contrib
+sudo postgresql-setup --initdb
+sudo systemctl enable --now postgresql
+```
+
+### 2. Configure PostgreSQL User and Database
+
+Log in as the `postgres` user and create a dedicated user and database for the application:
+
+```bash
+sudo -u postgres psql
+```
+
+Inside the PSQL prompt:
+```sql
+CREATE USER chatuser WITH PASSWORD 'your_secure_password';
+CREATE DATABASE chatserver OWNER chatuser;
+\q
+```
+
+### 3. Initialize Database Tables
+
+Once PostgreSQL is running and the database is created, run the migration script:
+
+```bash
+# Set your DATABASE_URL first (or put it in .env)
+export DATABASE_URL="postgresql://chatuser:your_secure_password@localhost:5432/chatserver"
+npm run init-pg-db
 ```
 
 ## Environment Variables
 Set these in Oracle Cloud:
 - `JWT_SECRET`: Your secret key for JWT tokens
+- `DATABASE_URL`: PostgreSQL connection string (e.g., `postgresql://user:password@localhost:5432/chatserver`)
 - `ALLOWED_ORIGINS`: (Optional) Comma-separated list of allowed origins
-- `DB_PATH`: (Optional) Path to your SQLite database file
 - `PORT`: (Optional) Server port (defaults to 3000)
 
 Example:
 ```bash
 export JWT_SECRET="your-super-secret-jwt-key-here"
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chatserver"
 export ALLOWED_ORIGINS="http://168.138.212.140:3000,http://168.138.212.140"
 export PORT=3000
 ```
@@ -45,29 +72,27 @@ export PORT=3000
 2. **Configure Oracle Cloud Compute Instance**
    - Create compute instance
    - Install Node.js and npm
+   - Install PostgreSQL or use a managed database service
    - Clone your repository
    - Install dependencies: `npm install`
 
 3. **Set Environment Variables**
    ```bash
    export JWT_SECRET="your-secret-key-here"
+   export DATABASE_URL="postgresql://..."
    export PORT=3000
    ```
 
-4. **Start the Application**
+4. **Initialize Database**
+   ```bash
+   npm run init-pg-db
+   ```
+
+5. **Start the Application**
    ```bash
    npm start
    ```
-   
-   The database will be automatically created on first startup.
-
-## Database Persistence
-To ensure your database persists across deployments:
-1. Store the database file in a persistent directory
-2. Set `DB_PATH` environment variable to that location
-3. Example: `export DB_PATH="/home/opc/chatapp/chat.db"`
 
 ## Troubleshooting
-- If database errors occur, run `npm run init-db` manually
-- Check that the database file has proper permissions
-- Ensure the directory is writable by the application user
+- If database errors occur, ensure PostgreSQL is running and `DATABASE_URL` is correct.
+- Run `npm run init-pg-db` to apply migrations.
