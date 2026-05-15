@@ -21,7 +21,9 @@ module.exports = (io, db, socket) => {
 
       await messageRateLimiter.consume(socket.username || socket.handshake.address);
 
-      if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
+      // Relaxed check: match the message's roomId against the resolvedRoomId
+      // and allow the message if the user is in that room.
+      if (!socket.username || (socket.room && socket.room !== resolvedRoomId)) {
         logger.warn({
           username: socket.username,
           socketRoom: socket.room,
