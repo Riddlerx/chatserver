@@ -43,6 +43,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setUnreadCounts,
     updateUserProfile,
     updateMessageReactions,
+    currentRoom,
     isLoggedIn 
   } = useChatStore();
 
@@ -56,7 +57,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         nextSocket.on('connect', () => {
           console.log('Connected to socket');
-          nextSocket.emit('joinRoom', { room: 'general' });
+          const { currentRoom } = useChatStore.getState();
+          if (currentRoom) {
+            nextSocket.emit('joinRoom', { room: currentRoom });
+          }
         });
 
         nextSocket.on('userList', (users: User[]) => {
@@ -117,7 +121,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSocket(null);
       }
     }
-  }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, updateUserProfile, updateMessageReactions]);
+    }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, updateUserProfile, updateMessageReactions, currentRoom]);
 
   const sendMessage = (message: string, roomId: string, parentMessageId?: number | null) => {
     const { user, addMessage } = useChatStore.getState();
