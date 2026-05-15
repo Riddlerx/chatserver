@@ -57,10 +57,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         nextSocket.on('connect', () => {
           console.log('Connected to socket');
-          const { currentRoom } = useChatStore.getState();
-          if (currentRoom) {
-            nextSocket.emit('joinRoom', { room: currentRoom });
-          }
         });
 
         nextSocket.on('userList', (users: User[]) => {
@@ -119,15 +115,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         socketRef.current = nextSocket;
         setSocket(nextSocket);
-      }
-    } else {
-      if (socketRef.current) {
+        }
+        } else {
+        if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
         setSocket(null);
-      }
-    }
-    }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, updateUserProfile, updateMessageReactions, currentRoom]);
+        }
+        }
+        }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions]);
+
+        // Handle Room Joining on connect or room change
+        useEffect(() => {
+        if (socket && currentRoom && !currentDMUser) {
+        socket.emit('joinRoom', { room: currentRoom });
+        socket.emit('markRoomAsRead', { room: currentRoom });
+        }
+        }, [socket, currentRoom, currentDMUser]);
 
   const sendMessage = (message: string, roomId: string, parentMessageId?: number | null) => {
     const { user, addMessage } = useChatStore.getState();
