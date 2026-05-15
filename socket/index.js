@@ -70,11 +70,10 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
 };
 
 module.exports = (server, db, rooms, activeSessions) => {
-  const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
   const io = new Server(server, {
       cors: {
           origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes(origin) || (process.env.NODE_ENV !== "production" && isDevelopmentOriginAllowed(origin))) {
+            if (!origin || config.ALLOWED_ORIGINS.includes(origin) || (process.env.NODE_ENV !== "production" && isDevelopmentOriginAllowed(origin))) {
               return callback(null, true);
             }
             return callback(new Error("Not allowed by CORS"));
