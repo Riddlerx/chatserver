@@ -123,12 +123,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         // Handle Room Joining on connect or room change
         useEffect(() => {
-        if (socket && currentRoom && !currentDMUser) {
-        socket.emit('joinRoom', { room: currentRoom });
-        socket.emit('markRoomAsRead', { room: currentRoom });
-        }
+          if (socket) {
+            if (currentDMUser) {
+              socket.emit('get dm history', { withUser: currentDMUser });
+              socket.emit('markDMAsRead', { withUser: currentDMUser });
+            } else if (currentRoom) {
+              socket.emit('joinRoom', { room: currentRoom });
+              socket.emit('markRoomAsRead', { room: currentRoom });
+            }
+          }
         }, [socket, currentRoom, currentDMUser]);
-
   const sendMessage = (message: string, roomId: string, parentMessageId?: number | null) => {
     const { user, addMessage } = useChatStore.getState();
     if (!user) return;
