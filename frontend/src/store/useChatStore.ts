@@ -143,20 +143,23 @@ export const useChatStore = create<ChatState>((set) => ({
 
       const updatedDMConversations = { ...state.dmConversations };
       Object.keys(updatedDMConversations).forEach(userKey => {
-        updatedDMConversations[userKey] = {
-          ...updatedDMConversations[userKey],
-          messages: updatedDMConversations[userKey].messages.map(message => {
-            const user = onlineUsers.find(u => u.username === message.username);
-            if (user) {
-              return {
-                ...message,
-                displayName: user.displayName || user.username,
-                profilePicture: user.profilePicture
-              };
-            }
-            return message;
-          })
-        };
+        const conversation = updatedDMConversations[userKey];
+        if (conversation && Array.isArray(conversation.messages)) {
+          updatedDMConversations[userKey] = {
+            ...conversation,
+            messages: conversation.messages.map(message => {
+              const user = onlineUsers.find(u => u.username === message.username);
+              if (user) {
+                return {
+                  ...message,
+                  displayName: user.displayName || user.username,
+                  profilePicture: user.profilePicture
+                };
+              }
+              return message;
+            })
+          };
+        }
       });
 
       return { 
@@ -193,21 +196,24 @@ export const useChatStore = create<ChatState>((set) => ({
         : message
     );
     const dmConversations = Object.fromEntries(
-      Object.entries(state.dmConversations).map(([key, data]) => [
-        key,
-        {
-          ...data,
-          messages: data.messages.map((message) =>
-            message.username === username
-              ? {
-                  ...message,
-                  displayName: updates.displayName ?? message.displayName,
-                  profilePicture: updates.profilePicture ?? message.profilePicture,
-                }
-              : message
-          )
-        }
-      ])
+      Object.entries(state.dmConversations).map(([key, data]) => {
+        if (!data || !Array.isArray(data.messages)) return [key, data];
+        return [
+          key,
+          {
+            ...data,
+            messages: data.messages.map((message) =>
+              message.username === username
+                ? {
+                    ...message,
+                    displayName: updates.displayName ?? message.displayName,
+                    profilePicture: updates.profilePicture ?? message.profilePicture,
+                  }
+                : message
+            )
+          }
+        ];
+      })
     );
 
     if (user) {
@@ -280,7 +286,7 @@ export const useChatStore = create<ChatState>((set) => ({
   })),
   
   setDMHistory: (username, messages, hasMore) => set((state) => ({
-    dmConversations: { ...state.dmConversations, [username]: { messages, hasMore } }
+    dmConversations: { ...state.dmConversations, [username]: { messages: messages || [], hasMore } }
   })),
 
   prependDMMessages: (username, newMessages, hasMore) => set((state) => {
@@ -289,7 +295,7 @@ export const useChatStore = create<ChatState>((set) => ({
       dmConversations: {
         ...state.dmConversations,
         [username]: {
-          messages: [...newMessages, ...current.messages],
+          messages: [...(newMessages || []), ...current.messages],
           hasMore
         }
       }
@@ -300,7 +306,7 @@ export const useChatStore = create<ChatState>((set) => ({
     // If it's a confirmation of an optimistic message, replace it
     const recipient = message.to || (state.currentDMUser && message.username === state.user?.username ? state.currentDMUser : message.username);
     const data = state.dmConversations[recipient] || { messages: [], hasMore: false };
-    const history = data.messages;
+    const history = data.messages || [];
     const existingIndex = history.findIndex(m => 
       m.status === 'sending' && m.message === message.message && m.username === message.username
     );
@@ -341,7 +347,7 @@ export const useChatStore = create<ChatState>((set) => ({
         ...state.dmConversations,
         [otherUser]: {
           ...currentData,
-          messages: [...currentData.messages, message]
+          messages: [...(currentData.messages || []), message]
         }
       },
       unreadCounts: newUnread,
@@ -351,7 +357,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setDMRead: (username, at) => set((state) => {
     const data = state.dmConversations[username];
-    if (!data) return state;
+    if (!data || !Array.isArray(data.messages)) return state;
 
     return {
       dmConversations: {
