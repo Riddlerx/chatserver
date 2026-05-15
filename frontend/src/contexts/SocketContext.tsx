@@ -8,11 +8,6 @@ interface SocketAckResponse {
   success: boolean;
 }
 
-interface DMHistoryPayload {
-  withUser: string;
-  messages: Message[];
-}
-
 interface ThreadHistoryPayload {
   messages: Message[];
 }
@@ -44,6 +39,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateUserProfile,
     updateMessageReactions,
     currentRoom,
+    currentDMUser,
     isLoggedIn 
   } = useChatStore();
 
