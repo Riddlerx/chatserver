@@ -81,40 +81,47 @@ async function broadcastUserList(io, db, activeSessions) {
 
     io.emit("userList", usersWithOnlineStatus);
 
-    // Calculate unread counts for each active socket
+    // Optimized Unread Counts
     for (const [username, socketId] of Object.entries(activeSessions)) {
       const socket = io.of("/").sockets.get(socketId);
       if (!socket) continue;
 
-      const unreadCounts = {};
+      try {
+        const unreadCounts = {};
 
-      // 1. Room unreads
-      const roomUnreads = await db.query(
-        `SELECT cr.name, COUNT(m.id) as count
-         FROM custom_rooms cr
-         LEFT JOIN last_read_status lrs ON cr.name = lrs.room AND lrs.username = $1 AND lrs.is_dm = FALSE
-         LEFT JOIN messages m ON cr.name = m.room AND (lrs.last_read_message_id IS NULL OR m.id > lrs.last_read_message_id)
-         GROUP BY cr.name`,
-        [username]
-      );
-      roomUnreads.rows.forEach(row => {
-        if (Number(row.count) > 0) unreadCounts[row.name] = Number(row.count);
-      });
+        // 1. Room unreads (Consolidated query)
+        const roomUnreads = await db.query(
+          `SELECT cr.name, 
+                  (SELECT COUNT(*) FROM messages m 
+                   LEFT JOIN last_read_status lrs ON m.room = lrs.room AND lrs.username = $1 AND lrs.is_dm = FALSE
+                   WHERE m.room = cr.name AND (lrs.last_read_message_id IS NULL OR m.id > lrs.last_read_message_id)
+                  ) as count
+           FROM custom_rooms cr`,
+          [username]
+        );
+        
+        roomUnreads.rows.forEach(row => {
+          if (row.count > 0) unreadCounts[row.name] = parseInt(row.count);
+        });
 
-      // 2. DM unreads
-      const dmUnreads = await db.query(
-        `SELECT dm.from_user as sender, COUNT(dm.id) as count
-         FROM direct_messages dm
-         LEFT JOIN last_read_status lrs ON dm.from_user = lrs.room AND lrs.username = $1 AND lrs.is_dm = TRUE
-         WHERE dm.to_user = $1 AND (lrs.last_read_message_id IS NULL OR dm.id > lrs.last_read_message_id)
-         GROUP BY dm.from_user`,
-        [username]
-      );
-      dmUnreads.rows.forEach(row => {
-        if (Number(row.count) > 0) unreadCounts[row.sender] = Number(row.count);
-      });
+        // 2. DM unreads (Consolidated query)
+        const dmUnreads = await db.query(
+          `SELECT dm.from_user as sender, COUNT(*) as count
+           FROM direct_messages dm
+           LEFT JOIN last_read_status lrs ON dm.from_user = lrs.room AND lrs.username = $1 AND lrs.is_dm = TRUE
+           WHERE dm.to_user = $1 AND (lrs.last_read_message_id IS NULL OR dm.id > lrs.last_read_message_id)
+           GROUP BY dm.from_user`,
+          [username]
+        );
+        
+        dmUnreads.rows.forEach(row => {
+          if (row.count > 0) unreadCounts[row.sender] = parseInt(row.count);
+        });
 
-      socket.emit("unreadCounts", unreadCounts);
+        socket.emit("unreadCounts", unreadCounts);
+      } catch (err) {
+        logger.error({ err, username }, "Error calculating unread counts for user");
+      }
     }
   } catch (err) {
     logger.error({ err }, "broadcastUserList error");
