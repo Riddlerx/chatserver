@@ -22,6 +22,12 @@ module.exports = (io, db, socket) => {
       await messageRateLimiter.consume(socket.username || socket.handshake.address);
 
       if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
+        logger.warn({
+          username: socket.username,
+          socketRoom: socket.room,
+          resolvedRoomId,
+          match: socket.room === resolvedRoomId
+        }, "Message rejected: unauthorized or room mismatch");
         return typeof callback === "function" && callback({ success: false, message: "Unauthorized or not in the correct room." });
       }
       if (!cleanMessage) {

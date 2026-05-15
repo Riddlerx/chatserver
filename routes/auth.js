@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const logger = require('../logger');
+const config = require('../config');
 
 
 
@@ -93,7 +94,7 @@ module.exports = (db) => {
           displayName: user.displayName,
           profilePicture: user.profilePicture
         },
-        process.env.JWT_SECRET,
+        config.JWT_SECRET,
         { expiresIn: "7d" },
       );
 

@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const logger = require('../logger');
+const config = require('../config');
 
 function parseAllowedOrigins(value) {
   if (!value) {
@@ -83,7 +84,7 @@ module.exports = (server, db, rooms, activeSessions) => {
   });
 
   // Apply Socket.IO authentication middleware
-  io.use(socketAuthMiddleware(db, process.env.JWT_SECRET));
+  io.use(socketAuthMiddleware(db, config.JWT_SECRET));
 
   // Load socket handlers
   require("../socket_handlers")(io, db, rooms, activeSessions);
