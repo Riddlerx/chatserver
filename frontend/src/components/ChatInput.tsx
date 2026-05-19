@@ -70,18 +70,6 @@ const ChatInput = () => {
     }
   };
 
-  useEffect(() => {
-    const handleFileDrop = (e: any) => {
-      const file = e.detail;
-      if (file) {
-        uploadFile(file);
-      }
-    };
-
-    window.addEventListener('chat:file-dropped', handleFileDrop);
-    return () => window.removeEventListener('chat:file-dropped', handleFileDrop);
-  }, []);
-
   const uploadFile = async (file: File) => {
     setUploading(true);
     const formData = new FormData();
@@ -103,6 +91,18 @@ const ChatInput = () => {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  useEffect(() => {
+    const handleFileDrop = (e: CustomEvent) => {
+      const file = e.detail;
+      if (file) {
+        uploadFile(file);
+      }
+    };
+
+    window.addEventListener('chat:file-dropped', handleFileDrop as EventListener);
+    return () => window.removeEventListener('chat:file-dropped', handleFileDrop as EventListener);
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
