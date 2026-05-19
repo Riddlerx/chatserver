@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { User, Message, Room } from '../types/chatTypes';
+import type { User, Message, Room, Reaction } from '../types/chatTypes';
 
 export interface Notification {
   id: string;

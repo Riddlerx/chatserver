@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Search, X, ImageIcon, AlertCircle } from 'lucide-react';
 
 interface GifPickerProps {
