@@ -1,6 +1,8 @@
 const cors = require('cors');
 const { ALLOWED_ORIGINS, NODE_ENV } = require('../config');
 
+console.log("DEBUG: ALLOWED_ORIGINS loaded:", ALLOWED_ORIGINS);
+
 function isDevelopmentOriginAllowed(origin) {
   if (!origin) return false;
 
@@ -20,6 +22,7 @@ function isDevelopmentOriginAllowed(origin) {
 
 const corsOptions = {
   origin: function (origin, callback) {
+    console.log("DEBUG: Incoming Origin:", origin);
     if (!origin || ALLOWED_ORIGINS.includes(origin) || (NODE_ENV === 'development' && isDevelopmentOriginAllowed(origin))) {
       callback(null, true);
     } else {
