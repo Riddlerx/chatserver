@@ -46,7 +46,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (isLoggedIn && token) {
       if (!socketRef.current) {
-        const nextSocket = io({
+        const nextSocket = io('https://eain.duckdns.org', {
           auth: { token },
           autoConnect: true,
         });
