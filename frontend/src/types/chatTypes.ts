@@ -21,7 +21,7 @@ export interface Message {
   parent_message_id?: number | null;
   reply_count?: number;
   userColor?: string;
-  reactions?: { emoji: string, count: number }[];
+  reactions?: Reaction[];
   status?: 'sending' | 'sent' | 'error';
   read_at?: string;
 }

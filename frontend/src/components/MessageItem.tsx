@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
 import { getAvatarStyle } from '../utils/userUtils';
@@ -18,14 +20,17 @@ interface MessageItemProps {
 
 const MessageItem = ({ message }: MessageItemProps) => {
   const { user, theme, currentDMUser } = useChatStore();
-  const { addReaction } = useSocket();
+  const { addReaction, removeReaction } = useSocket();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   
   const isSelf = message.username === user?.username;
-  const isImage = message.message.startsWith('/uploads/');
+  const isImage = message.message.startsWith('/uploads/') || 
+                 message.message.includes('giphy.com/media') || 
+                 /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(message.message);
   const isDM = !!(currentDMUser || message.to);
 
   useEffect(() => {
@@ -39,7 +44,14 @@ const MessageItem = ({ message }: MessageItemProps) => {
   }, []);
 
   const toggleReaction = (emoji: string) => {
-    addReaction(message.id, emoji);
+    const existingReaction = message.reactions?.find(r => r.emoji === emoji);
+    const hasReacted = existingReaction?.usernames?.includes(user?.username || '');
+    
+    if (hasReacted) {
+      removeReaction(message.id, emoji);
+    } else {
+      addReaction(message.id, emoji);
+    }
   };
 
   return (
@@ -47,6 +59,8 @@ const MessageItem = ({ message }: MessageItemProps) => {
       <motion.div 
         initial={{ opacity: 0, x: isSelf ? 20 : -20 }}
         animate={{ opacity: 1, x: 0 }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{
           display: 'flex',
           flexDirection: isSelf ? 'row-reverse' : 'row',
@@ -54,7 +68,8 @@ const MessageItem = ({ message }: MessageItemProps) => {
           gap: '12px',
           maxWidth: '80%',
           alignSelf: isSelf ? 'flex-end' : 'flex-start',
-          position: 'relative'
+          position: 'relative',
+          zIndex: (showEmojiPicker || isHovered) ? 1000 : 1
         }}
       >
         <div 
@@ -143,7 +158,28 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 style={{ maxWidth: '100%', borderRadius: '12px', display: 'block' }} 
               />
             ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, inline, className, children, ...props }: any) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    return !inline && match ? (
+                      <SyntaxHighlighter
+                        style={atomDark}
+                        language={match[1]}
+                        PreTag="div"
+                        {...props}
+                      >
+                        {String(children).replace(/\n$/, '')}
+                      </SyntaxHighlighter>
+                    ) : (
+                      <code className={className} {...props} style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 4px', borderRadius: '4px' }}>
+                        {children}
+                      </code>
+                    );
+                  }
+                }}
+              >
                 {message.message}
               </ReactMarkdown>
             )}
@@ -194,10 +230,10 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 ref={emojiPickerRef}
                 style={{
                   position: 'absolute',
-                  top: '100%',
+                  bottom: '100%',
                   [isSelf ? 'right' : 'left']: 0,
-                  marginTop: '8px',
-                  zIndex: 100
+                  marginBottom: '12px',
+                  zIndex: 2000
                 }}
               >
                 <EmojiPicker 
@@ -225,30 +261,34 @@ const MessageItem = ({ message }: MessageItemProps) => {
               marginTop: '4px',
               alignSelf: isSelf ? 'flex-end' : 'flex-start'
             }}>
-              {message.reactions.map((reaction) => (
-                <button
-                  key={reaction.emoji}
-                  onClick={() => toggleReaction(reaction.emoji)}
-                  style={{
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: 'var(--glass-border)',
-                    color: 'var(--text)',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                  onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                >
-                  <span>{reaction.emoji}</span>
-                  <span style={{ fontWeight: 700, opacity: 0.7 }}>{reaction.count}</span>
-                </button>
-              ))}
+              {message.reactions.map((reaction) => {
+                const hasReacted = reaction.usernames?.includes(user?.username || '');
+                return (
+                  <button
+                    key={reaction.emoji}
+                    onClick={() => toggleReaction(reaction.emoji)}
+                    title={reaction.usernames?.join(', ')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      background: hasReacted ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)',
+                      border: hasReacted ? '1px solid rgba(59, 130, 246, 0.5)' : 'var(--glass-border)',
+                      color: 'var(--text)',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = hasReacted ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255,255,255,0.1)'}
+                    onMouseOut={(e) => e.currentTarget.style.background = hasReacted ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.05)'}
+                  >
+                    <span>{reaction.emoji}</span>
+                    <span style={{ fontWeight: 700, opacity: 0.7 }}>{reaction.count}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

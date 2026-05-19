@@ -62,7 +62,13 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
       const messagesResult = await db.query(
         `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
                 u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
-                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count 
+                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count,
+                (SELECT json_agg(re) FROM (
+                    SELECT emoji, count(*) as count, json_agg(username) as usernames
+                    FROM reactions 
+                    WHERE message_id = m.id 
+                    GROUP BY emoji
+                ) re) as reactions
          FROM messages m 
          LEFT JOIN users u ON m.username = u.username 
          WHERE m.room = $1 
@@ -79,7 +85,8 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
           link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
           edited: Boolean(m.edited),
           is_pinned: Boolean(m.is_pinned),
-          reply_count: m.reply_count || 0
+          reply_count: m.reply_count || 0,
+          reactions: m.reactions || []
         })),
         hasMore: messagesResult.rows.length === 50
       });
@@ -88,7 +95,13 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
       const pinnedResult = await db.query(
         `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
                 u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
-                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count 
+                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count,
+                (SELECT json_agg(re) FROM (
+                    SELECT emoji, count(*) as count, json_agg(username) as usernames
+                    FROM reactions 
+                    WHERE message_id = m.id 
+                    GROUP BY emoji
+                ) re) as reactions
          FROM messages m 
          LEFT JOIN users u ON m.username = u.username 
          WHERE m.room = $1 AND m.is_pinned = TRUE 
@@ -100,7 +113,8 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
         ...m,
         displayName: m.displayName || m.username,
         link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
-        is_pinned: true
+        is_pinned: true,
+        reactions: m.reactions || []
       })));
 
       await broadcastRoomList(io, db);
@@ -133,7 +147,13 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
       const messagesResult = await db.query(
         `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
                 u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
-                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count 
+                m.link_preview, m.edited, m.parent_message_id, m.is_pinned, m.reply_count,
+                (SELECT json_agg(re) FROM (
+                    SELECT emoji, count(*) as count, json_agg(username) as usernames
+                    FROM reactions 
+                    WHERE message_id = m.id 
+                    GROUP BY emoji
+                ) re) as reactions
          FROM messages m 
          LEFT JOIN users u ON m.username = u.username 
          WHERE m.room = $1 AND m.timestamp < $2
@@ -148,7 +168,8 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
         link_preview: m.link_preview ? JSON.parse(m.link_preview) : null,
         edited: Boolean(m.edited),
         is_pinned: Boolean(m.is_pinned),
-        reply_count: m.reply_count || 0
+        reply_count: m.reply_count || 0,
+        reactions: m.reactions || []
       }));
 
       if (typeof callback === "function") {

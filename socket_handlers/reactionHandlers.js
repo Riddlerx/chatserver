@@ -8,10 +8,14 @@ module.exports = (io, db, socket) => {
   async function emitReactionsUpdate(messageId, roomId) {
     try {
       const reactionsResult = await db.query(
-        "SELECT emoji, COUNT(*) as count FROM reactions WHERE message_id = $1 GROUP BY emoji",
+        "SELECT emoji, COUNT(*) as count, json_agg(username) as usernames FROM reactions WHERE message_id = $1 GROUP BY emoji",
         [messageId]
       );
-      const reactions = reactionsResult.rows.map(r => ({ emoji: r.emoji, count: parseInt(r.count) }));
+      const reactions = reactionsResult.rows.map(r => ({ 
+        emoji: r.emoji, 
+        count: parseInt(r.count),
+        usernames: r.usernames || []
+      }));
 
       let targetRoom = roomId;
       if (!targetRoom) {

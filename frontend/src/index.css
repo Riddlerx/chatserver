@@ -5,6 +5,7 @@
   --sidebar-bg: rgba(15, 17, 26, 0.85);
   --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
   --accent: #6366f1;
+  --accent-rgb: 99, 102, 241;
   --text: #f3f4f6;
   --muted: #9ca3af;
   --bubble-bg: rgba(255, 255, 255, 0.05);
@@ -21,6 +22,7 @@ body.light-mode {
   --sidebar-bg: rgba(243, 244, 246, 0.8);
   --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
   --accent: #4f46e5;
+  --accent-rgb: 79, 70, 229;
   --text: #1f2937;
   --muted: #6b7280;
   --bubble-bg: rgba(0, 0, 0, 0.03);

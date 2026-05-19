@@ -1,15 +1,57 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './Sidebar';
 import MessageList from './MessageList';
 import UserList from './UserList';
 import ChatInput from './ChatInput';
 import Header from './Header';
+import { UploadCloud } from 'lucide-react';
 
 const Chat = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserListOpen, setIsUserListOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer?.types.includes('Files')) {
+        setIsDragging(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Only set to false if we're leaving the window or moving back to a non-file type
+      if (e.relatedTarget === null) {
+        setIsDragging(false);
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        window.dispatchEvent(new CustomEvent('chat:file-dropped', { detail: files[0] }));
+      }
+    };
+
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 900px)');
@@ -68,6 +110,47 @@ const Chat = () => {
           
           {!isMobile && <UserList />}
         </div>
+
+        <AnimatePresence>
+          {isDragging && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              style={{
+                position: 'absolute',
+                inset: '16px',
+                background: 'rgba(var(--accent-rgb), 0.1)',
+                backdropFilter: 'blur(10px)',
+                border: '2px dashed var(--accent)',
+                borderRadius: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '16px',
+                zIndex: 1000,
+                pointerEvents: 'none'
+              }}
+            >
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: 'var(--accent-gradient)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                boxShadow: '0 8px 32px rgba(99, 102, 241, 0.4)'
+              }}>
+                <UploadCloud size={40} />
+              </div>
+              <h3 style={{ fontSize: '20px', fontWeight: 700 }}>Drop to upload</h3>
+              <p style={{ color: 'var(--muted)' }}>Share images instantly</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {isMobile && (isSidebarOpen || isUserListOpen) && (

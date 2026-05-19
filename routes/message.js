@@ -19,7 +19,13 @@ module.exports = (db) => {
 
     try {
       const result = await db.query(
-          `SELECT m.*, u.displayName AS "displayName", u.profilePicture AS "profilePicture" 
+          `SELECT m.*, u.displayName AS "displayName", u.profilePicture AS "profilePicture",
+                (SELECT json_agg(re) FROM (
+                    SELECT emoji, count(*) as count, json_agg(username) as usernames
+                    FROM reactions 
+                    WHERE message_id = m.id 
+                    GROUP BY emoji
+                ) re) as reactions
            FROM messages m 
            LEFT JOIN users u ON m.username = u.username 
            WHERE m.room = $1 AND m.message LIKE $2 
@@ -28,7 +34,8 @@ module.exports = (db) => {
       );
       res.json(result.rows.map(m => ({
         ...m,
-        displayName: m.displayName || m.username
+        displayName: m.displayName || m.username,
+        reactions: m.reactions || []
       })));
     } catch (err) {
       logger.error({ err }, "Search error");

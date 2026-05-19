@@ -55,7 +55,7 @@ interface ChatState {
   addDMMessage: (message: Message) => void;
   setDMRead: (username: string, at: string) => void;
   setUnreadCounts: (counts: { [key: string]: number }) => void;
-  updateMessageReactions: (messageId: number, reactions: { emoji: string, count: number }[]) => void;
+  updateMessageReactions: (messageId: number, reactions: Reaction[]) => void;
   incrementUnread: (key: string) => void;
   clearUnread: (key: string) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'read' | 'timestamp'>) => void;
