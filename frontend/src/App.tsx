@@ -21,11 +21,18 @@ function App() {
     const fetchUser = async () => {
       if (token) {
         try {
-          const response = await api.get(`/profile/${JSON.parse(atob(token.split('.')[1])).username}`);
+          const storedUser = localStorage.getItem('user');
+          const username = storedUser ? JSON.parse(storedUser).username : null;
+          if (!username) {
+            throw new Error('No stored user');
+          }
+          const response = await api.get(`/profile/${username}`);
           setAuth(response.data, token);
         } catch (err) {
           console.error("Failed to fetch user profile", err);
           localStorage.removeItem('chatToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
           setAuth(null, null);
         }
       }

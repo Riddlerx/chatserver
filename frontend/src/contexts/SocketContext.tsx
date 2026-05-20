@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import axios from 'axios';
 import { useChatStore } from '../store/useChatStore';
 import type { Message, Room, User } from '../types/chatTypes';
 import { SocketContext } from './socketContext';
@@ -19,9 +20,27 @@ interface ReactionsUpdatedPayload {
   reactions: ReactionSummary;
 }
 
+// Refresh the access token using the stored refresh token
+const refreshAccessToken = async (): Promise<string | null> => {
+  const refreshToken = localStorage.getItem('refreshToken');
+  if (!refreshToken) return null;
+
+  try {
+    const response = await axios.post('https://eain.duckdns.org/api/auth/refresh', {
+      refreshToken,
+    });
+    const { token } = response.data;
+    localStorage.setItem('chatToken', token);
+    return token;
+  } catch {
+    return null;
+  }
+};
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const isRefreshingRef = useRef(false);
   const { 
     token, 
     setOnlineUsers, 
@@ -53,6 +72,36 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         nextSocket.on('connect', () => {
           console.log('Connected to socket');
+        });
+
+        // Handle auth errors — refresh token and reconnect
+        nextSocket.on('connect_error', async (err) => {
+          const isAuthError = err.message?.includes('token') || 
+                              err.message?.includes('Authentication') ||
+                              err.message?.includes('Invalid');
+          
+          if (isAuthError && !isRefreshingRef.current) {
+            isRefreshingRef.current = true;
+            console.log('Socket auth failed, attempting token refresh...');
+            
+            const newToken = await refreshAccessToken();
+            isRefreshingRef.current = false;
+
+            if (newToken) {
+              // Update socket auth and reconnect
+              nextSocket.auth = { token: newToken };
+              // Update the store with the new token
+              const storedUser = localStorage.getItem('user');
+              if (storedUser) {
+                useChatStore.getState().setAuth(JSON.parse(storedUser), newToken);
+              }
+              nextSocket.connect();
+            } else {
+              // Refresh failed — force logout
+              console.log('Token refresh failed, logging out');
+              useChatStore.getState().logout();
+            }
+          }
         });
 
         nextSocket.on('userList', (users: User[]) => {

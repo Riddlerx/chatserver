@@ -24,8 +24,8 @@ const Auth = () => {
       
       if (response.data.success) {
         if (isLogin) {
-          const { token, username: user, role, displayName, profilePicture } = response.data;
-          setAuth({ username: user, role, displayName, profilePicture }, token);
+          const { token, refreshToken, username: user, role, displayName, profilePicture } = response.data;
+          setAuth({ username: user, role, displayName, profilePicture }, token, refreshToken);
         } else {
           setIsLogin(true);
           setPassword('');

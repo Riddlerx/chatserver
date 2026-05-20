@@ -37,7 +37,7 @@ interface ChatState {
   theme: 'dark' | 'light';
 
   // Actions
-  setAuth: (user: User | null, token: string | null) => void;
+  setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setCurrentRoom: (room: string) => void;
   setRooms: (rooms: Room[]) => void;
@@ -84,9 +84,14 @@ export const useChatStore = create<ChatState>((set) => ({
   theme: (localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
 
   // Actions
-  setAuth: (user, token) => {
+  setAuth: (user, token, refreshToken) => {
     if (token) localStorage.setItem('chatToken', token);
     else localStorage.removeItem('chatToken');
+    
+    if (refreshToken !== undefined) {
+      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+      else localStorage.removeItem('refreshToken');
+    }
     
     if (user) localStorage.setItem('user', JSON.stringify(user));
     else localStorage.removeItem('user');
@@ -423,7 +428,18 @@ export const useChatStore = create<ChatState>((set) => ({
   clearNotifications: () => set({ notifications: [] }),
 
   logout: () => {
+    // Invalidate refresh token server-side
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      fetch('https://eain.duckdns.org/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => {}); // Fire and forget
+    }
     localStorage.removeItem('chatToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
     set({ user: null, token: null, isLoggedIn: false, messages: [], rooms: [], onlineUsers: [], unreadCounts: {}, notifications: [] });
   }
 }));
