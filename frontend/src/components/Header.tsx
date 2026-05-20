@@ -186,15 +186,28 @@ const Header = ({ isMobile = false, onOpenSidebar, onOpenUsers }: HeaderProps) =
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        {isMobile && (
-          <button
-            onClick={onOpenUsers}
-            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}
-            aria-label="Open user list"
-          >
-            <Users size={20} />
-          </button>
-        )}
+        <button
+          onClick={() => {
+            if (isMobile) {
+              onOpenUsers?.();
+            } else {
+              setActiveRightPanel(activeRightPanel === 'users' ? null : 'users');
+            }
+          }}
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            color: activeRightPanel === 'users' ? 'var(--accent)' : 'var(--muted)', 
+            cursor: 'pointer', 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+          aria-label="Toggle user list"
+          title="Users"
+        >
+          <Users size={20} />
+        </button>
 
         {/* Notification Bell */}
         <div style={{ position: 'relative' }} ref={notificationRef}>
