@@ -324,7 +324,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 </button>
               )}
 
-              {!isDM && (isSelf || user?.role === 'admin') && (
+              {!isDM && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); togglePin(); }}
                   title={message.is_pinned ? "Unpin Message" : "Pin Message"}
