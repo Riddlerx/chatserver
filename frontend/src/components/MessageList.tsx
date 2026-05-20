@@ -3,6 +3,7 @@ import { useChatStore } from '../store/useChatStore';
 import MessageItem from './MessageItem';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SocketContext } from '../contexts/socketContext';
+import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 
 const MessageList = () => {
   const { messages, typingUsers, user, currentDMUser, dmConversations, hasMoreMessages, currentRoom } = useChatStore();
@@ -114,9 +115,43 @@ const MessageList = () => {
         </div>
       ) : (
         <>
-          {displayMessages.map((msg) => (
-            <MessageItem key={msg.id || `${msg.timestamp}-${msg.username}`} message={msg} />
-          ))}
+          {displayMessages.map((msg, index) => {
+            const currentMessageDate = new Date(msg.timestamp);
+            const previousMessage = index > 0 ? displayMessages[index - 1] : null;
+            const previousMessageDate = previousMessage ? new Date(previousMessage.timestamp) : null;
+            
+            const showDateSeparator = !previousMessageDate || !isSameDay(currentMessageDate, previousMessageDate);
+            
+            return (
+              <div key={msg.id || `${msg.timestamp}-${msg.username}`}>
+                {showDateSeparator && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    margin: '24px 0',
+                    gap: '12px'
+                  }}>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
+                    <span style={{ 
+                      fontSize: '12px', 
+                      fontWeight: 600, 
+                      color: 'var(--muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      {isToday(currentMessageDate) 
+                        ? 'Today' 
+                        : isYesterday(currentMessageDate) 
+                          ? 'Yesterday' 
+                          : format(currentMessageDate, 'MMMM d, yyyy')}
+                    </span>
+                    <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
+                  </div>
+                )}
+                <MessageItem message={msg} />
+              </div>
+            );
+          })}
           
           <AnimatePresence>
             {filteredTypingUsers.length > 0 && (

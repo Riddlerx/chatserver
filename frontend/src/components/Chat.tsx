@@ -15,7 +15,7 @@ const Chat = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserListOpen, setIsUserListOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const { activeRightPanel, setActiveRightPanel } = useChatStore();
+  const { activeRightPanel, setActiveRightPanel, isConnected } = useChatStore();
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -98,13 +98,25 @@ const Chat = () => {
         <Header
           isMobile={isMobile}
           onOpenSidebar={() => setIsSidebarOpen(true)}
-          onOpenUsers={() => {
-            setIsUserListOpen(true);
-            setActiveRightPanel('users');
-          }}
+          onOpenUsers={() => setActiveRightPanel(activeRightPanel === 'users' ? null : 'users')}
         />
         
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {!isConnected && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.9)',
+            color: 'white',
+            textAlign: 'center',
+            padding: '6px',
+            fontSize: '13px',
+            fontWeight: 600,
+            backdropFilter: 'blur(5px)',
+            zIndex: 50
+          }}>
+            Connection lost. Reconnecting to server...
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
           <div style={{ 
             flex: 1, 
             display: 'flex', 

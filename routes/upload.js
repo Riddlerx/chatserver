@@ -10,8 +10,13 @@ const allowedMimeTypes = new Set([
   "image/gif",
   "image/webp",
   "image/avif",
+  "application/pdf",
+  "video/mp4",
+  "video/webm",
+  "audio/mpeg",
+  "audio/wav",
 ]);
-const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"]);
+const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".pdf", ".mp4", ".webm", ".mp3", ".wav"]);
 
 const uploadDirectory = path.join(__dirname, "..", "public", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
@@ -31,7 +36,7 @@ const storage = multer.diskStorage({
 // Create the multer instance
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 1024 * 1024 * 50 }, // 50MB file size limit (matching nginx)
+  limits: { fileSize: 1024 * 1024 * 10 }, // 10MB file size limit
   fileFilter: (req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase();
     const mimetype = allowedMimeTypes.has(file.mimetype);
@@ -43,7 +48,7 @@ const upload = multer({
     cb(
       new multer.MulterError(
         "LIMIT_UNEXPECTED_FILE",
-        "File upload only supports jpg, jpeg, png, gif, webp, and avif images",
+        "File upload only supports images, pdfs, mp4/webm videos, and mp3/wav audio",
       ),
     );
   },
@@ -54,7 +59,7 @@ router.post("/", (req, res) => {
     if (err instanceof multer.MulterError) {
       const message =
         err.message === "Unexpected field"
-          ? "File upload only supports jpg, jpeg, png, gif, webp, and avif images."
+          ? "File upload only supports images, pdfs, mp4/webm videos, and mp3/wav audio."
           : err.message;
       return res.status(400).json({ error: message });
     }

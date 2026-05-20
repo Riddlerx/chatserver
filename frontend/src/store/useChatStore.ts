@@ -18,6 +18,7 @@ interface ChatState {
   isLoggedIn: boolean;
 
   // UI State
+  isConnected: boolean;
   currentRoom: string;
   rooms: Room[];
   onlineUsers: User[];
@@ -72,6 +73,7 @@ interface ChatState {
   logout: () => void;
   setActiveRightPanel: (panel: 'users' | 'thread' | 'pinned' | null) => void;
   setPinnedMessages: (messages: Message[]) => void;
+  setIsConnected: (status: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -79,6 +81,7 @@ export const useChatStore = create<ChatState>((set) => ({
   user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null,
   token: localStorage.getItem('chatToken'),
   isLoggedIn: !!localStorage.getItem('chatToken'),
+  isConnected: true,
   currentRoom: 'general',
   rooms: [],
   onlineUsers: [],
@@ -96,6 +99,7 @@ export const useChatStore = create<ChatState>((set) => ({
   pinnedMessages: [],
 
   // Actions
+  setIsConnected: (status) => set({ isConnected: status }),
   setAuth: (user, token, refreshToken) => {
     if (token) localStorage.setItem('chatToken', token);
     else localStorage.removeItem('chatToken');

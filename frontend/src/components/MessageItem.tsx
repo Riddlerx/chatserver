@@ -30,18 +30,23 @@ const MessageItem = ({ message }: MessageItemProps) => {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   
   const isSelf = message.username === user?.username;
-  const isImage = message.message.startsWith('/uploads/') || 
-                 message.message.includes('giphy.com/media') || 
-                 /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(message.message);
+  const isUpload = message.message.startsWith('/uploads/');
+  const isGiphy = message.message.includes('giphy.com/media');
+  
+  const isVideo = /\.(mp4|webm)$/i.test(message.message);
+  const isAudio = /\.(mp3|wav)$/i.test(message.message);
+  const isPdf = /\.pdf$/i.test(message.message);
+  const isImage = isGiphy || (!isVideo && !isAudio && !isPdf && isUpload) || /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(message.message);
+  const isMedia = isImage || isVideo || isAudio || isPdf;
 
   // Resolve relative upload paths to the backend origin (needed when frontend is on Vercel)
-  const resolveImageUrl = (url: string) => {
+  const resolveMediaUrl = (url: string) => {
     if (url.startsWith('/uploads/')) {
       return `https://eain.duckdns.org${url}`;
     }
     return url;
   };
-  const imageSrc = isImage ? resolveImageUrl(message.message) : message.message;
+  const mediaSrc = (isUpload || isGiphy) ? resolveMediaUrl(message.message) : message.message;
 
   const isDM = !!(currentDMUser || message.to);
 
@@ -168,7 +173,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
           </div>
 
           <div style={{
-            padding: isImage ? '8px' : '12px 16px',
+            padding: isMedia ? '8px' : '12px 16px',
             borderRadius: '18px',
             borderTopLeftRadius: !isSelf ? '4px' : '18px',
             borderTopRightRadius: isSelf ? '4px' : '18px',
@@ -187,9 +192,18 @@ const MessageItem = ({ message }: MessageItemProps) => {
           }}
           onClick={() => isImage && setIsLightboxOpen(true)}
           >
-            {isImage ? (
+            {isVideo ? (
+              <video src={mediaSrc} controls style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '12px', display: 'block' }} />
+            ) : isAudio ? (
+              <audio src={mediaSrc} controls style={{ maxWidth: '100%', display: 'block', margin: '8px' }} />
+            ) : isPdf ? (
+              <a href={mediaSrc} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'inherit', textDecoration: 'none', padding: '12px' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <span>Download PDF Document</span>
+              </a>
+            ) : isImage ? (
               <img 
-                src={imageSrc} 
+                src={mediaSrc} 
                 alt="Chat attachment" 
                 style={{ maxWidth: '100%', borderRadius: '12px', display: 'block' }} 
               />
@@ -220,7 +234,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
               </ReactMarkdown>
             )}
 
-            {isEditing && !isImage && (
+            {isEditing && !isMedia && (
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <textarea 
                   value={editContent}
@@ -312,7 +326,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 </button>
               )}
 
-              {isSelf && !isImage && (
+              {isSelf && !isMedia && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
                   title="Edit Message"
@@ -439,7 +453,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
 
       <Modal isOpen={isLightboxOpen} onClose={() => setIsLightboxOpen(false)}>
         <img 
-          src={imageSrc} 
+          src={mediaSrc} 
           alt="Full size" 
           style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '12px' }} 
         />

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { useChatStore } from '../store/useChatStore';
-import { Send, Image, Smile, X } from 'lucide-react';
+import { Send, Smile, X, Paperclip, FileText, Video, Music } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import GifPicker from './GifPicker';
 import api from '../api';
@@ -16,6 +16,8 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +26,7 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
   const textInputRef = useRef<HTMLTextAreaElement>(null);
   
   const { sendMessage, sendDM, socket } = useSocket();
-  const { currentRoom, theme, currentDMUser } = useChatStore();
+  const { currentRoom, theme, currentDMUser, onlineUsers } = useChatStore();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -115,7 +117,19 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+    const val = e.target.value;
+    setText(val);
+
+    // Mention logic
+    const cursor = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursor);
+    const match = textBeforeCursor.match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+    }
 
     if (socket) {
       socket.emit('typing');
@@ -134,7 +148,56 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
     };
   }, []);
 
+  const filteredMentionUsers = onlineUsers.filter(u => 
+    u.username.toLowerCase().includes(mentionQuery?.toLowerCase() || '') ||
+    u.displayName?.toLowerCase().includes(mentionQuery?.toLowerCase() || '')
+  ).slice(0, 5);
+
+  const insertMention = (username: string | undefined) => {
+    if (!username || !textInputRef.current) return;
+    const cursor = textInputRef.current.selectionStart;
+    const textBeforeCursor = text.slice(0, cursor);
+    const textAfterCursor = text.slice(cursor);
+    const match = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (match) {
+      const start = cursor - match[0].length;
+      const newText = text.slice(0, start) + `@${username} ` + textAfterCursor;
+      setText(newText);
+      setMentionQuery(null);
+      setTimeout(() => {
+        if (textInputRef.current) {
+          textInputRef.current.selectionStart = start + username.length + 2;
+          textInputRef.current.selectionEnd = start + username.length + 2;
+          textInputRef.current.focus();
+        }
+      }, 0);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionQuery !== null) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex(prev => Math.max(0, prev - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex(prev => Math.min(filteredMentionUsers.length - 1, prev + 1));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(filteredMentionUsers[mentionIndex]?.username);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setMentionQuery(null);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -165,11 +228,19 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
           gap: '12px',
           boxShadow: 'var(--glass-shadow)'
         }}>
-          <img 
-            src={previewImage.startsWith('/uploads/') ? `https://eain.duckdns.org${previewImage}` : previewImage} 
-            alt="Preview" 
-            style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} 
-          />
+          {previewImage.match(/\.(mp4|webm)$/i) ? (
+            <Video size={40} style={{ color: 'var(--accent)' }} />
+          ) : previewImage.match(/\.(mp3|wav)$/i) ? (
+            <Music size={40} style={{ color: 'var(--accent)' }} />
+          ) : previewImage.match(/\.pdf$/i) ? (
+            <FileText size={40} style={{ color: 'var(--accent)' }} />
+          ) : (
+            <img 
+              src={previewImage.startsWith('/uploads/') ? `https://eain.duckdns.org${previewImage}` : previewImage} 
+              alt="Preview" 
+              style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} 
+            />
+          )}
           <button 
             onClick={() => {
                 setPreviewImage(null);
@@ -217,6 +288,42 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
         </div>
       )}
 
+      {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: '24px',
+          marginBottom: '12px',
+          background: 'var(--panel-bg)',
+          border: 'var(--glass-border)',
+          borderRadius: '12px',
+          padding: '8px',
+          boxShadow: 'var(--glass-shadow)',
+          zIndex: 100,
+          minWidth: '200px'
+        }}>
+          {filteredMentionUsers.map((u, i) => (
+            <div 
+              key={u.username}
+              onClick={() => insertMention(u.username)}
+              onMouseEnter={() => setMentionIndex(i)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                background: i === mentionIndex ? 'rgba(255,255,255,0.1)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{u.displayName || u.username}</span>
+              {u.displayName && <span style={{ color: 'var(--muted)', fontSize: '12px' }}>@{u.username}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={handleSend} style={{
         display: 'flex',
         alignItems: 'center',
@@ -231,15 +338,16 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
           ref={fileInputRef} 
           onChange={handleFileChange} 
           style={{ display: 'none' }} 
-          accept="image/*"
+          accept="image/*,video/mp4,video/webm,audio/mpeg,audio/wav,application/pdf"
         />
         <button 
           type="button" 
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
           style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex' }}
+          title="Upload file"
         >
-          {uploading ? <span className="spinner" style={{ width: '20px', height: '20px' }}></span> : <Image size={20} />}
+          {uploading ? <span className="spinner" style={{ width: '20px', height: '20px' }}></span> : <Paperclip size={20} />}
         </button>
         <button 
           type="button" 

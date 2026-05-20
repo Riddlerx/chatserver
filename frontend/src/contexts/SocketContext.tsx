@@ -64,7 +64,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPinnedMessages,
     currentRoom,
     currentDMUser,
-    isLoggedIn 
+    isLoggedIn,
+    setIsConnected
   } = useChatStore();
 
   useEffect(() => {
@@ -77,10 +78,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         nextSocket.on('connect', () => {
           console.log('Connected to socket');
+          setIsConnected(true);
+        });
+
+        nextSocket.on('disconnect', () => {
+          console.log('Disconnected from socket');
+          setIsConnected(false);
         });
 
         // Handle auth errors — refresh token and reconnect
         nextSocket.on('connect_error', async (err) => {
+          setIsConnected(false);
           const isAuthError = err.message?.includes('token') || 
                               err.message?.includes('Authentication') ||
                               err.message?.includes('Invalid');
