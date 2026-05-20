@@ -56,6 +56,8 @@ interface ChatState {
   setDMRead: (username: string, at: string) => void;
   setUnreadCounts: (counts: { [key: string]: number }) => void;
   updateMessageReactions: (messageId: number, reactions: Reaction[]) => void;
+  removeMessage: (messageId: number) => void;
+  removeDMMessage: (messageId: number) => void;
   incrementUnread: (key: string) => void;
   clearUnread: (key: string) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'read' | 'timestamp'>) => void;
@@ -403,6 +405,25 @@ export const useChatStore = create<ChatState>((set) => ({
     messages: (state.messages || []).map(m => m.id === messageId ? { ...m, reactions } : m),
     threadMessages: (state.threadMessages || []).map(m => m.id === messageId ? { ...m, reactions } : m)
   })),
+
+  removeMessage: (messageId) => set((state) => ({
+    messages: (state.messages || []).filter(m => m.id !== messageId),
+    threadMessages: (state.threadMessages || []).filter(m => m.id !== messageId)
+  })),
+
+  removeDMMessage: (messageId) => set((state) => {
+    const newDMConversations = { ...state.dmConversations };
+    Object.keys(newDMConversations).forEach(userKey => {
+      const data = newDMConversations[userKey];
+      if (data && Array.isArray(data.messages)) {
+        newDMConversations[userKey] = {
+          ...data,
+          messages: data.messages.filter(m => m.id !== messageId)
+        };
+      }
+    });
+    return { dmConversations: newDMConversations };
+  }),
 
   incrementUnread: (key) => set((state) => ({
     unreadCounts: { ...state.unreadCounts, [key]: (state.unreadCounts[key] || 0) + 1 }

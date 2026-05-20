@@ -10,6 +10,8 @@ export interface SocketContextValue {
   loadMoreDMs: (withUser: string, beforeTimestamp: string) => Promise<void>;
   addReaction: (messageId: number, emoji: string) => void;
   removeReaction: (messageId: number, emoji: string) => void;
+  deleteMessage: (messageId: number, roomId: string) => void;
+  deleteDM: (messageId: number) => void;
 }
 
 export const SocketContext = createContext<SocketContextValue | null>(null);

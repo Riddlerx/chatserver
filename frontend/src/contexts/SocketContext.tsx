@@ -57,6 +57,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setUnreadCounts,
     updateUserProfile,
     updateMessageReactions,
+    removeMessage,
+    removeDMMessage,
     currentRoom,
     currentDMUser,
     isLoggedIn 
@@ -158,6 +160,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           updateMessageReactions(messageId, reactions);
         });
 
+        nextSocket.on('message deleted', ({ id }: { id: number }) => {
+          removeMessage(id);
+        });
+
+        nextSocket.on('dm deleted', ({ id }: { id: number }) => {
+          removeDMMessage(id);
+        });
+
         socketRef.current = nextSocket;
         setSocket(nextSocket);
         }
@@ -168,7 +178,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSocket(null);
         }
         }
-        }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions]);
+        }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions, removeMessage, removeDMMessage]);
 
         // Handle Room Joining on connect or room change
         useEffect(() => {
@@ -275,19 +285,35 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const removeReaction = (messageId: number, emoji: string) => {
-    socketRef.current?.emit('remove reaction', { messageId, emoji });
+    if (socket) {
+      socket.emit('remove reaction', { messageId, emoji });
+    }
+  };
+
+  const deleteMessage = (messageId: number, roomId: string) => {
+    if (socket) {
+      socket.emit('deleteMessage', { messageId, roomId });
+    }
+  };
+
+  const deleteDM = (messageId: number) => {
+    if (socket) {
+      socket.emit('delete dm', { messageId });
+    }
   };
 
   return (
     <SocketContext.Provider value={{ 
-      socket,
+      socket, 
       sendMessage, 
       sendDM, 
       joinRoom, 
-      loadMoreMessages,
+      loadMoreMessages, 
       loadMoreDMs,
-      addReaction, 
-      removeReaction 
+      addReaction,
+      removeReaction,
+      deleteMessage,
+      deleteDM
     }}>
       {children}
     </SocketContext.Provider>

@@ -11,7 +11,7 @@ import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
 import { getAvatarStyle } from '../utils/userUtils';
-import { Smile, Check, CheckCheck } from 'lucide-react';
+import { Smile, Check, CheckCheck, Trash2 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 
 interface MessageItemProps {
@@ -19,8 +19,8 @@ interface MessageItemProps {
 }
 
 const MessageItem = ({ message }: MessageItemProps) => {
-  const { user, theme, currentDMUser } = useChatStore();
-  const { addReaction, removeReaction } = useSocket();
+  const { user, theme, currentDMUser, currentRoom } = useChatStore();
+  const { addReaction, removeReaction, deleteMessage, deleteDM } = useSocket();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -52,6 +52,16 @@ const MessageItem = ({ message }: MessageItemProps) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleDelete = () => {
+    if (window.confirm("Are you sure you want to delete this message?")) {
+      if (isDM) {
+        deleteDM(message.id);
+      } else {
+        deleteMessage(message.id, currentRoom);
+      }
+    }
+  };
 
   const toggleReaction = (emoji: string) => {
     const existingReaction = message.reactions?.find(r => r.emoji === emoji);
@@ -234,6 +244,37 @@ const MessageItem = ({ message }: MessageItemProps) => {
             >
               <Smile size={16} />
             </button>
+
+            {(isSelf || user?.role === 'admin') && (
+              <button 
+                className="delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete();
+                }}
+                title="Delete message"
+                style={{
+                  position: 'absolute',
+                  top: '32px',
+                  [isSelf ? 'right' : 'left']: 'calc(100% + 8px)',
+                  background: 'var(--panel-bg)',
+                  border: 'var(--glass-border)',
+                  borderRadius: '8px',
+                  padding: '4px',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  opacity: isHovered ? 1 : 0,
+                  transition: 'opacity 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  zIndex: 2
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
 
             {showEmojiPicker && (
               <div 
