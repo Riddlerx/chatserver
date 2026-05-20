@@ -31,6 +31,16 @@ const MessageItem = ({ message }: MessageItemProps) => {
   const isImage = message.message.startsWith('/uploads/') || 
                  message.message.includes('giphy.com/media') || 
                  /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(message.message);
+
+  // Resolve relative upload paths to the backend origin (needed when frontend is on Vercel)
+  const resolveImageUrl = (url: string) => {
+    if (url.startsWith('/uploads/')) {
+      return `https://eain.duckdns.org${url}`;
+    }
+    return url;
+  };
+  const imageSrc = isImage ? resolveImageUrl(message.message) : message.message;
+
   const isDM = !!(currentDMUser || message.to);
 
   useEffect(() => {
@@ -153,7 +163,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
           >
             {isImage ? (
               <img 
-                src={message.message} 
+                src={imageSrc} 
                 alt="Chat attachment" 
                 style={{ maxWidth: '100%', borderRadius: '12px', display: 'block' }} 
               />
@@ -296,7 +306,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
 
       <Modal isOpen={isLightboxOpen} onClose={() => setIsLightboxOpen(false)}>
         <img 
-          src={message.message} 
+          src={imageSrc} 
           alt="Full size" 
           style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '12px' }} 
         />
