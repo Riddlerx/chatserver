@@ -183,11 +183,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setPinnedMessages(messages);
         });
 
-        nextSocket.on('messagePinned', ({ messageId, roomId }: { messageId: number, roomId: string }) => {
+        nextSocket.on('messagePinned', ({ messageId }: { messageId: number, roomId: string }) => {
           updateMessage(messageId, { is_pinned: true });
         });
 
-        nextSocket.on('messageUnpinned', ({ messageId, roomId }: { messageId: number, roomId: string }) => {
+        nextSocket.on('messageUnpinned', ({ messageId }: { messageId: number, roomId: string }) => {
           updateMessage(messageId, { is_pinned: false });
         });
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { useSocket } from '../hooks/useSocket';
 import MessageItem from './MessageItem';

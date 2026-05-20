@@ -20,7 +20,7 @@ interface MessageItemProps {
 
 const MessageItem = ({ message }: MessageItemProps) => {
   const { user, theme, currentDMUser, currentRoom } = useChatStore();
-  const { addReaction, removeReaction, deleteMessage, deleteDM } = useSocket();
+  const { addReaction, removeReaction, deleteMessage, deleteDM, editMessage, editDM, pinMessage, unpinMessage } = useSocket();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);

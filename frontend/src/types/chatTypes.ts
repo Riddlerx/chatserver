@@ -20,6 +20,7 @@ export interface Message {
   link_preview?: string;
   parent_message_id?: number | null;
   reply_count?: number;
+  is_pinned?: boolean;
   userColor?: string;
   reactions?: Reaction[];
   status?: 'sending' | 'sent' | 'error';
