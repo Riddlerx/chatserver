@@ -162,7 +162,7 @@ const ChatInput = () => {
           boxShadow: 'var(--glass-shadow)'
         }}>
           <img 
-            src={previewImage} 
+            src={previewImage.startsWith('/uploads/') ? `https://eain.duckdns.org${previewImage}` : previewImage} 
             alt="Preview" 
             style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} 
           />
