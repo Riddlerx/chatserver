@@ -196,9 +196,17 @@ export const useChatStore = create<ChatState>((set) => ({
 
   updateUserProfile: (username, updates) => set((state) => {
     const user = state.user?.username === username ? { ...state.user, ...updates } : state.user;
-    const onlineUsers = (state.onlineUsers || []).map((onlineUser) =>
-      onlineUser.username === username ? { ...onlineUser, ...updates } : onlineUser
-    );
+    const existingIndex = (state.onlineUsers || []).findIndex(u => u.username === username);
+    let onlineUsers: User[];
+    if (existingIndex >= 0) {
+      // Update existing
+      onlineUsers = (state.onlineUsers || []).map((onlineUser) =>
+        onlineUser.username === username ? { ...onlineUser, ...updates } : onlineUser
+      );
+    } else {
+      // Upsert: user wasn't in the list yet (e.g. just came online)
+      onlineUsers = [...(state.onlineUsers || []), { username, role: 'user', ...updates } as User];
+    }
     const messages = (state.messages || []).map((message) =>
       message.username === username
         ? {
