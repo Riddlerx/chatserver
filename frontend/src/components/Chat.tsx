@@ -116,17 +116,16 @@ const Chat = () => {
           </div>
         )}
 
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ 
-            flex: 1, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            minWidth: 0 
-          }}>
+        {/* Main content row: messages + right panel side by side */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+          
+          {/* Chat column: messages + input */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
             <MessageList />
             <ChatInput />
           </div>
           
+          {/* Right panels (desktop only) */}
           <AnimatePresence>
             {!isMobile && activeRightPanel === 'users' && <UserList key="users" />}
             {!isMobile && activeRightPanel === 'thread' && <ThreadPanel key="thread" />}

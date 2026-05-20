@@ -123,7 +123,7 @@ const MessageList = () => {
             const showDateSeparator = !previousMessageDate || !isSameDay(currentMessageDate, previousMessageDate);
             
             return (
-              <div key={msg.id || `${msg.timestamp}-${msg.username}`}>
+              <div key={msg.id || `${msg.timestamp}-${msg.username}`} style={{ display: 'flex', flexDirection: 'column' }}>
                 {showDateSeparator && (
                   <div style={{
                     display: 'flex',
