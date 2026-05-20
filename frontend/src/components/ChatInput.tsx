@@ -6,7 +6,11 @@ import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import GifPicker from './GifPicker';
 import api from '../api';
 
-const ChatInput = () => {
+interface ChatInputProps {
+  parentMessageId?: number;
+}
+
+const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -47,15 +51,15 @@ const ChatInput = () => {
         if (currentDMUser) {
           sendDM(currentDMUser, previewImage);
         } else {
-          sendMessage(previewImage, currentRoom);
+          sendMessage(previewImage, currentRoom, parentMessageId);
         }
     }
     
-    if (messageToSend) {
+    if (messageToSend && messageToSend !== previewImage) {
         if (currentDMUser) {
           sendDM(currentDMUser, messageToSend);
         } else {
-          sendMessage(messageToSend, currentRoom);
+          sendMessage(messageToSend, currentRoom, parentMessageId);
         }
     }
     

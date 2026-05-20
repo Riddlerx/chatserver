@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import { useSocket } from '../hooks/useSocket';
-import { Hash, Settings, Bell, Search, Sun, Moon, AtSign, Trash2, CheckCircle, Menu, Users } from 'lucide-react';
+import { Hash, Settings, Bell, Search, Sun, Moon, AtSign, Trash2, CheckCircle, Menu, Users, Pin } from 'lucide-react';
 import api from '../api';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
@@ -29,7 +29,9 @@ const Header = ({ isMobile = false, onOpenSidebar, onOpenUsers }: HeaderProps) =
     markNotificationsAsRead, 
     clearNotifications,
     setCurrentRoom,
-    setCurrentDMUser
+    setCurrentDMUser,
+    activeRightPanel,
+    setActiveRightPanel
   } = useChatStore();
   const { joinRoom, socket } = useSocket();
   
@@ -286,6 +288,24 @@ const Header = ({ isMobile = false, onOpenSidebar, onOpenUsers }: HeaderProps) =
             </div>
           )}
         </div>
+
+        {!currentDMUser && (
+          <button 
+            onClick={() => setActiveRightPanel(activeRightPanel === 'pinned' ? null : 'pinned')}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: activeRightPanel === 'pinned' ? 'var(--accent)' : 'var(--muted)', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            title="Pinned Messages"
+          >
+            <Pin size={20} />
+          </button>
+        )}
 
         <button 
           onClick={() => setIsSettingsOpen(true)}

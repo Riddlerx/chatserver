@@ -5,13 +5,17 @@ import MessageList from './MessageList';
 import UserList from './UserList';
 import ChatInput from './ChatInput';
 import Header from './Header';
+import ThreadPanel from './ThreadPanel';
+import PinnedMessages from './PinnedMessages';
 import { UploadCloud } from 'lucide-react';
+import { useChatStore } from '../store/useChatStore';
 
 const Chat = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserListOpen, setIsUserListOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const { activeRightPanel, setActiveRightPanel } = useChatStore();
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -94,7 +98,10 @@ const Chat = () => {
         <Header
           isMobile={isMobile}
           onOpenSidebar={() => setIsSidebarOpen(true)}
-          onOpenUsers={() => setIsUserListOpen(true)}
+          onOpenUsers={() => {
+            setIsUserListOpen(true);
+            setActiveRightPanel('users');
+          }}
         />
         
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -108,7 +115,11 @@ const Chat = () => {
             <ChatInput />
           </div>
           
-          {!isMobile && <UserList />}
+          <AnimatePresence>
+            {!isMobile && activeRightPanel === 'users' && <UserList key="users" />}
+            {!isMobile && activeRightPanel === 'thread' && <ThreadPanel key="thread" />}
+            {!isMobile && activeRightPanel === 'pinned' && <PinnedMessages key="pinned" />}
+          </AnimatePresence>
         </div>
 
         <AnimatePresence>
@@ -194,12 +205,14 @@ const Chat = () => {
             right: 0,
             bottom: 0,
             width: 'min(320px, 86vw)',
-            transform: isUserListOpen ? 'translateX(0)' : 'translateX(100%)',
+            transform: (isUserListOpen || activeRightPanel) ? 'translateX(0)' : 'translateX(100%)',
             transition: 'transform 0.25s ease',
             zIndex: 50
           }}
         >
-          <UserList mobile />
+          {activeRightPanel === 'thread' && <ThreadPanel />}
+          {activeRightPanel === 'pinned' && <PinnedMessages />}
+          {(activeRightPanel === 'users' || (!activeRightPanel && isUserListOpen)) && <UserList mobile />}
         </div>
       )}
     </motion.div>

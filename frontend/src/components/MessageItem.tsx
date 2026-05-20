@@ -11,7 +11,7 @@ import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Modal from './Modal';
 import ProfileModal from './ProfileModal';
 import { getAvatarStyle } from '../utils/userUtils';
-import { Smile, Check, CheckCheck, Trash2 } from 'lucide-react';
+import { Smile, Check, CheckCheck, Trash2, Pencil, Pin, MessageCircle } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 
 interface MessageItemProps {
@@ -25,6 +25,8 @@ const MessageItem = ({ message }: MessageItemProps) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.message);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   
   const isSelf = message.username === user?.username;
@@ -60,6 +62,25 @@ const MessageItem = ({ message }: MessageItemProps) => {
       } else {
         deleteMessage(message.id, currentRoom);
       }
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (editContent.trim() && editContent !== message.message) {
+      if (isDM) {
+        editDM(message.id, editContent.trim());
+      } else {
+        editMessage(message.id, editContent.trim(), currentRoom);
+      }
+    }
+    setIsEditing(false);
+  };
+
+  const togglePin = () => {
+    if (message.is_pinned) {
+      unpinMessage(message.id, currentRoom);
+    } else {
+      pinMessage(message.id, currentRoom);
     }
   };
 
@@ -118,14 +139,8 @@ const MessageItem = ({ message }: MessageItemProps) => {
           alignItems: isSelf ? 'flex-end' : 'flex-start',
           position: 'relative'
         }}
-        onMouseEnter={(e) => {
-          const btn = e.currentTarget.querySelector('.reaction-btn') as HTMLElement;
-          if (btn) btn.style.opacity = '1';
-        }}
-        onMouseLeave={(e) => {
-          const btn = e.currentTarget.querySelector('.reaction-btn') as HTMLElement;
-          if (btn && !showEmojiPicker) btn.style.opacity = '0';
-        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         >
           <div style={{ 
             display: 'flex', 
@@ -139,7 +154,8 @@ const MessageItem = ({ message }: MessageItemProps) => {
               {message.displayName || message.username}
             </span>
             <span>{format(new Date(message.timestamp), 'HH:mm')}</span>
-            {message.edited && <span>(edited)</span>}
+            {message.edited && <span style={{ fontStyle: 'italic', opacity: 0.8 }}>(edited)</span>}
+            {message.is_pinned && <Pin size={12} style={{ color: 'var(--accent)' }} />}
             {isSelf && isDM && message.status !== 'error' && (
               <span style={{ display: 'flex', marginLeft: '2px' }}>
                 {message.read_at ? (
@@ -203,6 +219,45 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 {message.message}
               </ReactMarkdown>
             )}
+
+            {isEditing && !isImage && (
+              <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <textarea 
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    minWidth: '200px',
+                    minHeight: '60px',
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'white',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    fontFamily: 'inherit',
+                    fontSize: 'inherit',
+                    resize: 'vertical'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSaveEdit();
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditing(false);
+                      setEditContent(message.message);
+                    }
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button onClick={(e) => { e.stopPropagation(); setIsEditing(false); setEditContent(message.message); }} style={{ background: 'transparent', color: 'var(--text)', border: 'none', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+                  <button onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Save</button>
+                </div>
+              </div>
+            )}
+            
             {message.status === 'error' && (
               <div style={{ 
                 fontSize: '10px', 
@@ -216,65 +271,83 @@ const MessageItem = ({ message }: MessageItemProps) => {
             )}
 
 
-            {/* Reaction Button (appears on hover) */}
-            <button 
-              className="reaction-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowEmojiPicker(!showEmojiPicker);
-              }}
+            {/* Action Buttons Toolbar (appears on hover) */}
+            <div 
               style={{
                 position: 'absolute',
-                top: '0',
-                [isSelf ? 'right' : 'left']: 'calc(100% + 8px)',
+                top: '-16px',
+                [isSelf ? 'right' : 'left']: '16px',
                 background: 'var(--panel-bg)',
                 border: 'var(--glass-border)',
                 borderRadius: '8px',
                 padding: '4px',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-                opacity: showEmojiPicker ? 1 : 0,
-                transition: 'opacity 0.2s',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                zIndex: 2
+                gap: '4px',
+                opacity: isHovered || showEmojiPicker ? 1 : 0,
+                pointerEvents: isHovered || showEmojiPicker ? 'auto' : 'none',
+                transition: 'opacity 0.2s',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                zIndex: 10
               }}
             >
-              <Smile size={16} />
-            </button>
-
-            {(isSelf || user?.role === 'admin') && (
               <button 
-                className="delete-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete();
-                }}
-                title="Delete message"
-                style={{
-                  position: 'absolute',
-                  top: '32px',
-                  [isSelf ? 'right' : 'left']: 'calc(100% + 8px)',
-                  background: 'var(--panel-bg)',
-                  border: 'var(--glass-border)',
-                  borderRadius: '8px',
-                  padding: '4px',
-                  color: '#ef4444',
-                  cursor: 'pointer',
-                  opacity: isHovered ? 1 : 0,
-                  transition: 'opacity 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  zIndex: 2
-                }}
+                onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); }}
+                title="Add Reaction"
+                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'none'}
               >
-                <Trash2 size={16} />
+                <Smile size={16} />
               </button>
-            )}
+
+              {!isDM && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); useChatStore.getState().setActiveRightPanel('thread'); useChatStore.getState().setCurrentThreadId(message.id); }}
+                  title="Reply in Thread"
+                  style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}
+                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <MessageCircle size={16} />
+                </button>
+              )}
+
+              {isSelf && !isImage && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                  title="Edit Message"
+                  style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}
+                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <Pencil size={16} />
+                </button>
+              )}
+
+              {!isDM && (isSelf || user?.role === 'admin') && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); togglePin(); }}
+                  title={message.is_pinned ? "Unpin Message" : "Pin Message"}
+                  style={{ background: 'none', border: 'none', color: message.is_pinned ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}
+                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <Pin size={16} />
+                </button>
+              )}
+
+              {(isSelf || user?.role === 'admin') && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  title="Delete message"
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'flex' }}
+                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'none'}
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
 
             {showEmojiPicker && (
               <div 
@@ -282,7 +355,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
                 style={{
                   position: 'absolute',
                   bottom: '100%',
-                  [isSelf ? 'right' : 'left']: 0,
+                  [isSelf ? 'right' : 'left']: '16px',
                   marginBottom: '12px',
                   zIndex: 2000
                 }}
@@ -342,6 +415,25 @@ const MessageItem = ({ message }: MessageItemProps) => {
               })}
             </div>
           )}
+
+          {message.reply_count && message.reply_count > 0 ? (
+            <div 
+              style={{
+                marginTop: '4px',
+                color: 'var(--accent)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-block'
+              }}
+              onClick={() => {
+                useChatStore.getState().setActiveRightPanel('thread');
+                useChatStore.getState().setCurrentThreadId(message.id);
+              }}
+            >
+              ↳ View {message.reply_count} {message.reply_count === 1 ? 'reply' : 'replies'}
+            </div>
+          ) : null}
         </div>
       </motion.div>
 

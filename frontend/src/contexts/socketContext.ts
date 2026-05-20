@@ -12,6 +12,12 @@ export interface SocketContextValue {
   removeReaction: (messageId: number, emoji: string) => void;
   deleteMessage: (messageId: number, roomId: string) => void;
   deleteDM: (messageId: number) => void;
+  editMessage: (messageId: number, newMessage: string, roomId: string) => void;
+  editDM: (messageId: number, newMessage: string) => void;
+  pinMessage: (messageId: number, roomId: string) => void;
+  unpinMessage: (messageId: number, roomId: string) => void;
+  getThread: (parent_message_id: number) => void;
+  leaveThread: (parent_message_id: number) => void;
 }
 
 export const SocketContext = createContext<SocketContextValue | null>(null);

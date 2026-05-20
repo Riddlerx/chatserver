@@ -59,6 +59,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateMessageReactions,
     removeMessage,
     removeDMMessage,
+    updateMessage,
+    updateDMMessage,
+    setPinnedMessages,
     currentRoom,
     currentDMUser,
     isLoggedIn 
@@ -168,6 +171,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           removeDMMessage(id);
         });
 
+        nextSocket.on('message edited', (data: any) => {
+          updateMessage(data.id, { message: data.message, timestamp: data.timestamp, edited: data.edited });
+        });
+
+        nextSocket.on('dm edited', (data: any) => {
+          updateDMMessage(data.id, { message: data.message, timestamp: data.timestamp, edited: data.edited });
+        });
+
+        nextSocket.on('pinned messages updated', (messages: Message[]) => {
+          setPinnedMessages(messages);
+        });
+
+        nextSocket.on('messagePinned', ({ messageId, roomId }: { messageId: number, roomId: string }) => {
+          updateMessage(messageId, { is_pinned: true });
+        });
+
+        nextSocket.on('messageUnpinned', ({ messageId, roomId }: { messageId: number, roomId: string }) => {
+          updateMessage(messageId, { is_pinned: false });
+        });
+
+        nextSocket.on('reply count updated', ({ messageId, reply_count }: { messageId: number, reply_count: number }) => {
+          updateMessage(messageId, { reply_count });
+        });
+
         socketRef.current = nextSocket;
         setSocket(nextSocket);
         }
@@ -178,7 +205,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSocket(null);
         }
         }
-        }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions, removeMessage, removeDMMessage]);
+        }, [isLoggedIn, token, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions, removeMessage, removeDMMessage, updateMessage, updateDMMessage, setPinnedMessages]);
 
         // Handle Room Joining on connect or room change
         useEffect(() => {
@@ -302,6 +329,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const editMessage = (messageId: number, newMessage: string, roomId: string) => {
+    if (socket) socket.emit('editMessage', { messageId, newMessage, roomId });
+  };
+
+  const editDM = (messageId: number, newMessage: string) => {
+    if (socket) socket.emit('edit dm', { messageId, newMessage });
+  };
+
+  const pinMessage = (messageId: number, roomId: string) => {
+    if (socket) socket.emit('pinMessage', { messageId, roomId });
+  };
+
+  const unpinMessage = (messageId: number, roomId: string) => {
+    if (socket) socket.emit('unpinMessage', { messageId, roomId });
+  };
+
+  const getThread = (parent_message_id: number) => {
+    if (socket) socket.emit('get thread', { parent_message_id });
+  };
+
+  const leaveThread = (parent_message_id: number) => {
+    if (socket) socket.emit('leave thread', { parent_message_id });
+  };
+
   return (
     <SocketContext.Provider value={{ 
       socket, 
@@ -313,7 +364,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       addReaction,
       removeReaction,
       deleteMessage,
-      deleteDM
+      deleteDM,
+      editMessage,
+      editDM,
+      pinMessage,
+      unpinMessage,
+      getThread,
+      leaveThread
     }}>
       {children}
     </SocketContext.Provider>

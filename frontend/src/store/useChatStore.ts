@@ -36,6 +36,10 @@ interface ChatState {
   notifications: Notification[];
   theme: 'dark' | 'light';
 
+  // Panels & Features
+  activeRightPanel: 'users' | 'thread' | 'pinned' | null;
+  pinnedMessages: Message[];
+
   // Actions
   setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => void;
   setTheme: (theme: 'dark' | 'light') => void;
@@ -58,12 +62,16 @@ interface ChatState {
   updateMessageReactions: (messageId: number, reactions: Reaction[]) => void;
   removeMessage: (messageId: number) => void;
   removeDMMessage: (messageId: number) => void;
+  updateMessage: (messageId: number, updates: Partial<Message>) => void;
+  updateDMMessage: (messageId: number, updates: Partial<Message>) => void;
   incrementUnread: (key: string) => void;
   clearUnread: (key: string) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'read' | 'timestamp'>) => void;
   markNotificationsAsRead: () => void;
   clearNotifications: () => void;
   logout: () => void;
+  setActiveRightPanel: (panel: 'users' | 'thread' | 'pinned' | null) => void;
+  setPinnedMessages: (messages: Message[]) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -84,6 +92,8 @@ export const useChatStore = create<ChatState>((set) => ({
   unreadCounts: {},
   notifications: [],
   theme: (localStorage.getItem('theme') as 'dark' | 'light') || 'dark',
+  activeRightPanel: null,
+  pinnedMessages: [],
 
   // Actions
   setAuth: (user, token, refreshToken) => {
@@ -425,6 +435,26 @@ export const useChatStore = create<ChatState>((set) => ({
     return { dmConversations: newDMConversations };
   }),
 
+  updateMessage: (messageId, updates) => set((state) => ({
+    messages: (state.messages || []).map(m => m.id === messageId ? { ...m, ...updates } : m),
+    threadMessages: (state.threadMessages || []).map(m => m.id === messageId ? { ...m, ...updates } : m),
+    pinnedMessages: (state.pinnedMessages || []).map(m => m.id === messageId ? { ...m, ...updates } : m)
+  })),
+
+  updateDMMessage: (messageId, updates) => set((state) => {
+    const newDMConversations = { ...state.dmConversations };
+    Object.keys(newDMConversations).forEach(userKey => {
+      const data = newDMConversations[userKey];
+      if (data && Array.isArray(data.messages)) {
+        newDMConversations[userKey] = {
+          ...data,
+          messages: data.messages.map(m => m.id === messageId ? { ...m, ...updates } : m)
+        };
+      }
+    });
+    return { dmConversations: newDMConversations };
+  }),
+
   incrementUnread: (key) => set((state) => ({
     unreadCounts: { ...state.unreadCounts, [key]: (state.unreadCounts[key] || 0) + 1 }
   })),
@@ -447,6 +477,10 @@ export const useChatStore = create<ChatState>((set) => ({
   })),
 
   clearNotifications: () => set({ notifications: [] }),
+
+  setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
+  
+  setPinnedMessages: (pinnedMessages) => set({ pinnedMessages: Array.isArray(pinnedMessages) ? pinnedMessages : [] }),
 
   logout: () => {
     // Invalidate refresh token server-side
