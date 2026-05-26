@@ -21,6 +21,21 @@ A modern, real-time chat application with channels, direct messages, and interac
 
 ## 📦 Setup
 
+### Docker
+
+From a fresh clone, start the full stack with:
+```bash
+docker compose up --build
+```
+
+- **Frontend**: http://localhost:5173
+- **Backend**: http://localhost:3000
+- **PostgreSQL**: localhost:5433
+
+The backend container waits for PostgreSQL and runs the PostgreSQL migrations before starting.
+
+### Local Development
+
 1. **Install Dependencies**:
    ```bash
    npm install
@@ -50,7 +65,7 @@ Start both the backend and frontend simultaneously:
 npm run dev
 ```
 
-- **Frontend**: http://localhost:5000
+- **Frontend**: http://localhost:5173
 - **Backend**: http://localhost:3000
 
 ## 🏠 Sharing on Local Network
@@ -60,7 +75,7 @@ To let friends on your Wi-Fi join the chat, use your local IP address:
 # Start with host flag (already configured in npm run dev)
 npm run dev
 ```
-Then share your IP: `http://YOUR_LOCAL_IP:5000`
+Then share your IP: `http://YOUR_LOCAL_IP:5173`
 
 ## 🔒 Security
 
