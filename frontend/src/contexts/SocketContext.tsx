@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
 import { useChatStore } from '../store/useChatStore';
 import type { Message, Room, User } from '../types/chatTypes';
-import { SocketContext } from './socketContext';
+import { SocketContext } from './chatSocketContext';
 
 interface SocketAckResponse {
   success: boolean;

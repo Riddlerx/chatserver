@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useContext } from 'react';
 import { useChatStore } from '../store/useChatStore';
 import MessageItem from './MessageItem';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SocketContext } from '../contexts/socketContext';
+import { SocketContext } from '../contexts/chatSocketContext';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 
 const MessageList = () => {
