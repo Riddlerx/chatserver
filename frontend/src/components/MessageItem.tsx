@@ -42,7 +42,7 @@ const MessageItem = ({ message }: MessageItemProps) => {
   // Resolve relative upload paths to the backend origin (needed when frontend is on Vercel)
   const resolveMediaUrl = (url: string) => {
     if (url.startsWith('/uploads/')) {
-      return `https://eain.duckdns.org${url}`;
+      return `${import.meta.env.VITE_BASE_URL || 'https://eain.duckdns.org'}${url}`;
     }
     return url;
   };

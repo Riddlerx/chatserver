@@ -10,7 +10,7 @@ export function generateUserColor(username: string) {
 export function getAvatarStyle(profilePicture?: string, username?: string) {
   if (profilePicture) {
     // If it's already a full URL or starts with /, use it directly. Otherwise, prepend /uploads/
-    const baseUrl = 'https://eain.duckdns.org';
+    const baseUrl = import.meta.env.VITE_BASE_URL || 'https://eain.duckdns.org';
     const imageUrl = profilePicture.startsWith('http') 
       ? profilePicture 
       : profilePicture.startsWith('/') 

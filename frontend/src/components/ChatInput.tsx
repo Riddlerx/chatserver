@@ -236,7 +236,7 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
             <FileText size={40} style={{ color: 'var(--accent)' }} />
           ) : (
             <img 
-              src={previewImage.startsWith('/uploads/') ? `https://eain.duckdns.org${previewImage}` : previewImage} 
+              src={previewImage.startsWith('/uploads/') ? `${import.meta.env.VITE_BASE_URL || 'https://eain.duckdns.org'}${previewImage}` : previewImage} 
               alt="Preview" 
               style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} 
             />

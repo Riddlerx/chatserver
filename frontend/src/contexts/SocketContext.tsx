@@ -25,8 +25,10 @@ const refreshAccessToken = async (): Promise<string | null> => {
   const refreshToken = localStorage.getItem('refreshToken');
   if (!refreshToken) return null;
 
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
+
   try {
-    const response = await axios.post('https://eain.duckdns.org/api/auth/refresh', {
+    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
       refreshToken,
     });
     const { token } = response.data;
@@ -71,7 +73,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (isLoggedIn && token) {
       if (!socketRef.current) {
-        const nextSocket = io('https://eain.duckdns.org', {
+        const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://eain.duckdns.org';
+        const nextSocket = io(BASE_URL, {
           auth: { token },
           autoConnect: true,
         });

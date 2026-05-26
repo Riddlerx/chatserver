@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
+
 const api = axios.create({
-  baseURL: 'https://eain.duckdns.org/api',
+  baseURL: API_BASE_URL,
 });
 
 // Track whether a refresh is already in progress to avoid duplicate calls
@@ -68,7 +70,7 @@ api.interceptors.response.use(
       }
 
       try {
-        const response = await axios.post('https://eain.duckdns.org/api/auth/refresh', {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
           refreshToken,
         });
 

@@ -497,8 +497,9 @@ export const useChatStore = create<ChatState>((set) => ({
   logout: () => {
     // Invalidate refresh token server-side
     const refreshToken = localStorage.getItem('refreshToken');
+    const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
     if (refreshToken) {
-      fetch('https://eain.duckdns.org/api/auth/logout', {
+      fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),

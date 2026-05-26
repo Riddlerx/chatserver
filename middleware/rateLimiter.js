@@ -1,8 +1,9 @@
 const rateLimit = require('express-rate-limit');
+const config = require('../config');
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000, // Increased limit for production
+  max: config.NODE_ENV === 'development' ? 10000 : 1000, // Much higher limit for dev
   message: 'Too many requests, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
