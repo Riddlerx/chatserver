@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: chatserver
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password123
+      POSTGRES_PASSWORD: Kurumi123
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -17,7 +17,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password123@db:5432/chatserver
+      - DATABASE_URL=postgresql://postgres:Kurumi123@db:5432/chatserver
       - JWT_SECRET=change_me_in_production
       - NODE_ENV=development
       - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
