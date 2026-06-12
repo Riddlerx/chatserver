@@ -25,9 +25,6 @@ const Auth = () => {
       if (response.data.success) {
         if (isLogin) {
           const user = response.data;
-          if (user.refreshToken) {
-            localStorage.setItem('refreshToken', user.refreshToken);
-          }
           setAuth({ username: user.username, role: user.role, displayName: user.displayName, profilePicture: user.profilePicture });
         } else {
           setIsLogin(true);

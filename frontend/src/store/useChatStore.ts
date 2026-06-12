@@ -485,18 +485,12 @@ export const useChatStore = create<ChatState>((set) => ({
   setPinnedMessages: (pinnedMessages) => set({ pinnedMessages: Array.isArray(pinnedMessages) ? pinnedMessages : [] }),
 
   logout: () => {
-    // Invalidate refresh token server-side
-    const refreshToken = localStorage.getItem('refreshToken');
+    // Call logout API to clear cookies server-side (fire and forget)
     const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
-    if (refreshToken) {
-      fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      }).catch(() => {}); // Fire and forget
-    }
-    localStorage.removeItem('chatToken');
-    localStorage.removeItem('refreshToken');
+    fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include', // Send cookies so server can clear them
+    }).catch(() => {}); // Fire and forget
     localStorage.removeItem('user');
     set({ user: null, isLoggedIn: false, messages: [], rooms: [], onlineUsers: [], unreadCounts: {}, notifications: [] });
   }

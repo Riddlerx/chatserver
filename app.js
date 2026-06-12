@@ -1,5 +1,6 @@
 const path = require('path');
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const logger = require('./logger');
 
 const config = require('./config');
@@ -34,6 +35,7 @@ app.use(cors);
 // Body Parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Public folder for static files
 app.use(express.static(path.join(__dirname, 'public')));

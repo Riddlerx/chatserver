@@ -131,10 +131,16 @@ module.exports = (db) => {
         [user.username]
       );
 
+      // Set refreshToken as httpOnly cookie — JS cannot read it
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+      });
+
       res.json({ 
         success: true, 
-        // token, // Token is now in cookie
-        refreshToken,
         username: user.username,
         role: user.role,
         displayName: user.displayName,
@@ -148,10 +154,11 @@ module.exports = (db) => {
 
   // Refresh token endpoint — issues a new access token
   router.post("/refresh", async (req, res) => {
-    const { refreshToken } = req.body;
+    // Read refresh token from httpOnly cookie
+    const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
-      return res.status(400).json({ error: "Refresh token is required" });
+      return res.status(401).json({ error: "Refresh token is required" });
     }
 
     try {
@@ -168,14 +175,15 @@ module.exports = (db) => {
 
       // Check if user is banned
       if (tokenRecord.banned_username) {
-        // Revoke all tokens for banned user
         await db.query('DELETE FROM refresh_tokens WHERE username = $1', [tokenRecord.username]);
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
         return res.status(403).json({ error: "Your account has been banned" });
       }
 
       // Check if token is expired
       if (new Date(tokenRecord.expires_at) < new Date()) {
         await db.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
         return res.status(401).json({ error: "Refresh token expired" });
       }
 
@@ -188,6 +196,7 @@ module.exports = (db) => {
 
       if (!user) {
         await db.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
         return res.status(401).json({ error: "User not found" });
       }
 
@@ -203,11 +212,11 @@ module.exports = (db) => {
         { expiresIn: ACCESS_TOKEN_EXPIRY },
       );
 
-      // Set cookie
+      // Set new access token cookie
       res.cookie('token', newToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'none', // Changed from 'strict' to 'none'
+        sameSite: 'none',
         maxAge: 3600000 // 1 hour
       });
 
@@ -215,7 +224,6 @@ module.exports = (db) => {
 
       res.json({
         success: true,
-        // token: newToken, // Token is now in cookie
         username: user.username,
         role: user.role,
         displayName: user.displayName,
@@ -227,9 +235,9 @@ module.exports = (db) => {
     }
   });
 
-  // Logout endpoint — invalidates the refresh token
+  // Logout endpoint — invalidates the refresh token and clears cookies
   router.post("/logout", async (req, res) => {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies?.refreshToken;
 
     if (refreshToken) {
       try {
@@ -238,6 +246,10 @@ module.exports = (db) => {
         logger.error({ err }, "Logout Error");
       }
     }
+
+    // Clear both auth cookies
+    res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none' });
+    res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
 
     res.json({ success: true });
   });

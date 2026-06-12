@@ -26,9 +26,8 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Just call the refresh endpoint — cookies are sent automatically
-        const storedRefreshToken = localStorage.getItem('refreshToken');
-        await api.post('/auth/refresh', storedRefreshToken ? { refreshToken: storedRefreshToken } : {});
+        // Just call the refresh endpoint — cookie sent automatically
+        await api.post('/auth/refresh', {});
 
         // Retry the original request
         return api(originalRequest);
