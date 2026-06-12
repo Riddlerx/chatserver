@@ -10,16 +10,7 @@ module.exports = {
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
     : [
-        'http://localhost:3000',
-        'http://localhost:5000',
-        'http://localhost:5173',
-        'http://localhost',
-        'http://168.138.212.140:3000',
-        'http://168.138.212.140',
-        'http://34.134.106.108:3000',
-        'http://34.134.106.108',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5000',
-        'http://127.0.0.1',
+        'https://chatserver-dusky.vercel.app',
+        'https://eain.duckdns.org'
       ],
 };
