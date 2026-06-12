@@ -106,6 +106,14 @@ module.exports = (db) => {
         { expiresIn: ACCESS_TOKEN_EXPIRY },
       );
 
+      // Set cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        maxAge: 3600000 // 1 hour
+      });
+
       // Generate long-lived refresh token
       const refreshToken = generateRefreshToken();
       const expiresAt = new Date();
@@ -125,7 +133,7 @@ module.exports = (db) => {
 
       res.json({ 
         success: true, 
-        token, 
+        // token, // Token is now in cookie
         refreshToken,
         username: user.username,
         role: user.role,
@@ -195,11 +203,19 @@ module.exports = (db) => {
         { expiresIn: ACCESS_TOKEN_EXPIRY },
       );
 
+      // Set cookie
+      res.cookie('token', newToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        maxAge: 3600000 // 1 hour
+      });
+
       logger.info(`Token refreshed for user "${user.username}"`);
 
       res.json({
         success: true,
-        token: newToken,
+        // token: newToken, // Token is now in cookie
         username: user.username,
         role: user.role,
         displayName: user.displayName,
