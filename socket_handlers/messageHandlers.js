@@ -245,6 +245,10 @@ module.exports = (io, db, socket) => {
         return typeof callback === "function" && callback({ success: false, message: "Unauthorized." });
       }
 
+      if (socket.role !== "admin" && socket.role !== "moderator") {
+        return typeof callback === "function" && callback({ success: false, message: "Only administrators and moderators can pin or unpin messages." });
+      }
+
       const result = await db.query(
         "UPDATE messages SET is_pinned = $1 WHERE id = $2 AND room = $3 RETURNING id",
         [shouldPin, normalizedMessageId, resolvedRoomId]

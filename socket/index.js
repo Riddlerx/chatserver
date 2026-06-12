@@ -85,9 +85,31 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
 };
 
 module.exports = (server, db, rooms, activeSessions) => {
+  const allowedOriginsSet = new Set(config.ALLOWED_ORIGINS || []);
+  
   const io = new Server(server, {
       cors: {
-          origin: true,
+          origin: (origin, callback) => {
+              // Socket.io requests without Origin header (like mobile apps, raw clients, or server-to-server)
+              if (!origin) return callback(null, true);
+              
+              if (allowedOriginsSet.has(origin)) {
+                  return callback(null, true);
+              }
+              
+              if (config.NODE_ENV === 'development') {
+                  try {
+                      const url = new URL(origin);
+                      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+                          return callback(null, true);
+                      }
+                  } catch (_) {
+                      // invalid URL
+                  }
+              }
+              
+              callback(new Error('Not allowed by CORS'));
+          },
           methods: ["GET", "POST"],
           credentials: true
       },

@@ -22,11 +22,12 @@ module.exports = (db) => {
         const roomRecord = roomResult.rows[0];
 
         if (roomRecord && roomRecord.password && req.user.role !== 'admin') {
-           // We can't easily verify if they have joined the room in a REST endpoint without a session/socket check.
-           // However, if they are making a REST API request, they shouldn't be able to search a private room they aren't part of.
-           // A better approach would be to check the socket rooms, but since this is REST, we will block it for now.
-           // You should really just block searching private rooms entirely over REST, or require the room password in the request.
-           return res.status(403).json({ error: "Cannot search private rooms via this endpoint without password authentication." });
+           const activeRooms = req.app.get('rooms');
+           const isJoined = activeRooms && activeRooms[room] && activeRooms[room].has(req.user.username);
+           
+           if (!isJoined) {
+              return res.status(403).json({ error: "Cannot search private rooms via this endpoint without being actively joined." });
+           }
         }
     } catch (err) {
         logger.error({ err }, "Error checking room permissions during search");

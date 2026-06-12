@@ -61,7 +61,16 @@ module.exports = (db) => {
         res.status(500).json({ error: "Server error during account deletion" });
       }
     } else {
-      await performUserDeletion(username, res, req.user.username);
+      try {
+        const targetRes = await db.query("SELECT role FROM users WHERE username = $1", [username]);
+        const targetUser = targetRes.rows[0];
+        if (targetUser && targetUser.role === 'admin') {
+          return res.status(403).json({ error: "Admins cannot delete other administrators." });
+        }
+        await performUserDeletion(username, res, req.user.username);
+      } catch (err) {
+        res.status(500).json({ error: "Server error checking user role." });
+      }
     }
   });
 
@@ -72,6 +81,12 @@ module.exports = (db) => {
     if (!username || !reason) return res.status(400).json({ error: "Username and reason required." });
 
     try {
+      const targetRes = await db.query("SELECT role FROM users WHERE username = $1", [username]);
+      const targetUser = targetRes.rows[0];
+      if (targetUser && targetUser.role === 'admin') {
+        return res.status(403).json({ error: "Admins cannot ban other administrators." });
+      }
+
       await db.query(
         "INSERT INTO banned_users (username, banned_by, reason, timestamp) VALUES ($1, $2, $3, $4) ON CONFLICT (username) DO UPDATE SET banned_by = EXCLUDED.banned_by, reason = EXCLUDED.reason, timestamp = EXCLUDED.timestamp",
         [username, req.user.username, reason, new Date().toISOString()]
@@ -108,6 +123,12 @@ module.exports = (db) => {
     const { role } = req.body;
     if (!["user", "moderator", "admin"].includes(role)) return res.status(400).json({ error: "Invalid role." });
     try {
+      const targetRes = await db.query("SELECT role FROM users WHERE username = $1", [username]);
+      const targetUser = targetRes.rows[0];
+      if (targetUser && targetUser.role === 'admin' && username !== req.user.username) {
+        return res.status(403).json({ error: "Admins cannot modify the role of other administrators." });
+      }
+
       const result = await db.query("UPDATE users SET role = $1 WHERE username = $2", [role, username]);
       if (result.rowCount === 0) return res.status(404).json({ error: "User not found." });
       await db.query("INSERT INTO audit_log (admin_username, action, target_username, reason, timestamp) VALUES ($1, $2, $3, $4, $5)",

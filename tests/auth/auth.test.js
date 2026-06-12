@@ -45,7 +45,7 @@ describe('Auth API', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty('token');
+    expect(response.headers['set-cookie']).toBeDefined();
     expect(response.body).toHaveProperty('username', testUser.username);
   });
 
