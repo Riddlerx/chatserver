@@ -34,7 +34,17 @@ function isDevelopmentOriginAllowed(origin) {
 // Middleware for Socket.IO connection authentication
 const socketAuthMiddleware = (db, JWT_SECRET) => {
   return async (socket, next) => {
-    const token = socket.handshake.auth?.token;
+    let token = socket.handshake.auth?.token;
+    
+    // Fallback to cookie if token is not in auth payload
+    if (!token && socket.handshake.headers.cookie) {
+      const cookieHeader = socket.handshake.headers.cookie;
+      const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
+      if (match) {
+        token = match[1];
+      }
+    }
+
     if (!token) return next(new Error("Authentication token is missing."));
 
     try {
