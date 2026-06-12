@@ -85,7 +85,8 @@ module.exports = (server, db, rooms, activeSessions) => {
           origin: (origin, callback) => {
             return callback(null, true);
           },
-          methods: ["GET", "POST"]
+          methods: ["GET", "POST"],
+          credentials: true
       },
   });
 
