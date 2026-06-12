@@ -20,3 +20,4 @@ chat.db-wal
 
 # Ignore uploaded files
 public/uploads/
+docker-compose.yml
