@@ -4,14 +4,20 @@ const logger = require("../logger");
 module.exports = (db, JWT_SECRET) => {
   return async (req, res, next) => {
     try {
+      let token;
+      
       const authHeader = req.headers.authorization;
-      if (!authHeader) {
-        return res.status(401).json({ error: "Authorization header missing" });
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      } else if (req.headers.cookie) {
+        const match = req.headers.cookie.match(/(?:^|;\s*)token=([^;]+)/);
+        if (match) {
+          token = match[1];
+        }
       }
 
-      const [scheme, token] = authHeader.split(" ");
-      if (scheme !== "Bearer" || !token) {
-        return res.status(401).json({ error: "Invalid authorization header" });
+      if (!token) {
+        return res.status(401).json({ error: "Authorization token missing" });
       }
 
       let decoded;

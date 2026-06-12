@@ -35,6 +35,7 @@ function isDevelopmentOriginAllowed(origin) {
 const socketAuthMiddleware = (db, JWT_SECRET) => {
   return async (socket, next) => {
     let token = socket.handshake.auth?.token;
+    logger.info({ cookieHeader: socket.handshake.headers.cookie, token }, "Socket Auth Attempt");
     
     // Fallback to cookie if token is not in auth payload
     if (!token && socket.handshake.headers.cookie) {
@@ -42,10 +43,14 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
       const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
       if (match) {
         token = match[1];
+        logger.info("Token extracted from cookie");
       }
     }
 
-    if (!token) return next(new Error("Authentication token is missing."));
+    if (!token) {
+      logger.error("Authentication token is missing in socket connection.");
+      return next(new Error("Authentication token is missing."));
+    }
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -82,9 +87,7 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
 module.exports = (server, db, rooms, activeSessions) => {
   const io = new Server(server, {
       cors: {
-          origin: (origin, callback) => {
-            return callback(null, true);
-          },
+          origin: true,
           methods: ["GET", "POST"],
           credentials: true
       },
