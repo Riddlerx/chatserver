@@ -110,7 +110,7 @@ module.exports = (db) => {
       res.cookie('token', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict',
+        sameSite: 'none', // Changed from 'strict' to 'none'
         maxAge: 3600000 // 1 hour
       });
 
@@ -207,7 +207,7 @@ module.exports = (db) => {
       res.cookie('token', newToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict',
+        sameSite: 'none', // Changed from 'strict' to 'none'
         maxAge: 3600000 // 1 hour
       });
 
