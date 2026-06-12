@@ -27,9 +27,8 @@ const storage = multer.diskStorage({
     cb(null, uploadDirectory);
   },
   filename: (req, file, cb) => {
-    // Generate a secure random filename
-    const ext = path.extname(file.originalname);
-    cb(null, crypto.randomUUID() + ext);
+    // We will handle the extension later after verifying the file type
+    cb(null, crypto.randomUUID());
   },
 });
 
@@ -54,8 +53,8 @@ const upload = multer({
   },
 });
 
-router.post("/", (req, res) => {
-  upload.single("file")(req, res, (err) => {
+router.post("/", async (req, res) => {
+  upload.single("file")(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       const message =
         err.message === "Unexpected field"
@@ -72,7 +71,34 @@ router.post("/", (req, res) => {
       return res.status(400).json({ error: "Please select a file." });
     }
 
-    return res.json({ filePath: `/uploads/${req.file.filename}` });
+    // Securely determine the file extension based on content using file-type
+    try {
+      const fileTypeModule = await import("file-type");
+      const fileType = await fileTypeModule.fileTypeFromFile(req.file.path);
+      
+      let ext = "";
+      if (fileType && allowedMimeTypes.has(fileType.mime) && allowedExtensions.has(`.${fileType.ext}`)) {
+         ext = `.${fileType.ext}`;
+      } else {
+         // Fallback if file-type cannot determine, but multer allowed it (e.g. some PDFs might be tricky, though file-type handles them well)
+         const originalExt = path.extname(req.file.originalname).toLowerCase();
+         if (allowedExtensions.has(originalExt)) {
+             ext = originalExt;
+         } else {
+             fs.unlinkSync(req.file.path); // Delete the invalid file
+             return res.status(400).json({ error: "Invalid file type." });
+         }
+      }
+
+      const newFilename = req.file.filename + ext;
+      const newPath = path.join(uploadDirectory, newFilename);
+      fs.renameSync(req.file.path, newPath);
+
+      return res.json({ filePath: `/uploads/${newFilename}` });
+    } catch (error) {
+      fs.unlinkSync(req.file.path); // Delete on error
+      return res.status(500).json({ error: "Error processing uploaded file." });
+    }
   });
 });
 

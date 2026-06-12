@@ -5,6 +5,13 @@ const {
 } = require("./utils");
 
 module.exports = (io, db, socket) => {
+  async function getJoinedMessageRoom(messageId) {
+    const messageResult = await db.query("SELECT room FROM messages WHERE id = $1", [messageId]);
+    const message = messageResult.rows[0];
+    if (!message || !socket.room || socket.room !== message.room) return null;
+    return message.room;
+  }
+
   async function emitReactionsUpdate(messageId, roomId) {
     try {
       const reactionsResult = await db.query(
@@ -42,12 +49,17 @@ module.exports = (io, db, socket) => {
         return typeof callback === "function" && callback({ success: false });
       }
 
+      const messageRoom = await getJoinedMessageRoom(normalizedMessageId);
+      if (!messageRoom) {
+        return typeof callback === "function" && callback({ success: false });
+      }
+
       await db.query(
         "INSERT INTO reactions (message_id, username, emoji) VALUES ($1, $2, $3) ON CONFLICT (message_id, username, emoji) DO NOTHING",
         [normalizedMessageId, socket.username, normalizedEmoji]
       );
 
-      await emitReactionsUpdate(normalizedMessageId, socket.room);
+      await emitReactionsUpdate(normalizedMessageId, messageRoom);
       if (typeof callback === "function") callback({ success: true });
     } catch (err) {
       logger.error({ err }, "Add reaction error");
@@ -64,12 +76,17 @@ module.exports = (io, db, socket) => {
         return typeof callback === "function" && callback({ success: false });
       }
 
+      const messageRoom = await getJoinedMessageRoom(normalizedMessageId);
+      if (!messageRoom) {
+        return typeof callback === "function" && callback({ success: false });
+      }
+
       await db.query(
         "DELETE FROM reactions WHERE message_id = $1 AND username = $2 AND emoji = $3",
         [normalizedMessageId, socket.username, normalizedEmoji]
       );
 
-      await emitReactionsUpdate(normalizedMessageId, socket.room);
+      await emitReactionsUpdate(normalizedMessageId, messageRoom);
       if (typeof callback === "function") callback({ success: true });
     } catch (err) {
       logger.error({ err }, "Remove reaction error");
@@ -77,8 +94,11 @@ module.exports = (io, db, socket) => {
     }
   });
 
-  socket.on("get reactions", ({ messageId }) => {
+  socket.on("get reactions", async ({ messageId }) => {
     const normalizedMessageId = normalizePositiveInt(messageId);
-    if (normalizedMessageId) emitReactionsUpdate(normalizedMessageId, socket.room);
+    if (!normalizedMessageId) return;
+
+    const messageRoom = await getJoinedMessageRoom(normalizedMessageId);
+    if (messageRoom) await emitReactionsUpdate(normalizedMessageId, messageRoom);
   });
 };

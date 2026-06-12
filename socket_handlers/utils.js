@@ -4,6 +4,7 @@ const { parse } = require("node-html-parser");
 const { URL } = require("url");
 const sanitizeHtml = require("sanitize-html");
 const logger = require("../logger");
+const { Address4, Address6 } = require("ip-address");
 
 function normalizeString(value, { maxLength = 500, trim = true } = {}) {
   if (typeof value !== "string") return null;
@@ -158,7 +159,50 @@ async function fetchLinkPreview(url) {
       });
     });
 
-    const isPrivate = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|169\.254\.|100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.)/.test(ip) || ip === "::1";
+    // Use ip-address library to properly validate IPs (both IPv4 and IPv6)
+    let isPrivate = false;
+    try {
+        if (Address4.isValid(ip)) {
+            const address = new Address4(ip);
+            // Check for private network ranges, loopback, link-local, broadcast, etc.
+            if (address.isInSubnet(new Address4("10.0.0.0/8")) ||
+                address.isInSubnet(new Address4("172.16.0.0/12")) ||
+                address.isInSubnet(new Address4("192.168.0.0/16")) ||
+                address.isInSubnet(new Address4("127.0.0.0/8")) || // Loopback
+                address.isInSubnet(new Address4("169.254.0.0/16")) || // Link-local
+                address.isInSubnet(new Address4("100.64.0.0/10")) || // Carrier-grade NAT
+                address.isInSubnet(new Address4("0.0.0.0/8")) || // 'This network'
+                address.isInSubnet(new Address4("192.0.0.0/24")) || // IETF Protocol Assignments
+                address.isInSubnet(new Address4("192.0.2.0/24")) || // TEST-NET-1
+                address.isInSubnet(new Address4("198.18.0.0/15")) || // Network interconnect device benchmark testing
+                address.isInSubnet(new Address4("198.51.100.0/24")) || // TEST-NET-2
+                address.isInSubnet(new Address4("203.0.113.0/24")) || // TEST-NET-3
+                address.isInSubnet(new Address4("224.0.0.0/4")) || // Multicast
+                address.isInSubnet(new Address4("240.0.0.0/4")) || // Reserved
+                address.isInSubnet(new Address4("255.255.255.255/32"))) // Broadcast
+            {
+                isPrivate = true;
+            }
+        } else if (Address6.isValid(ip)) {
+             const address = new Address6(ip);
+             // Check for IPv4-mapped IPv6 addresses, loopback, link-local, unique local
+             if (address.isLoopback() || 
+                 address.isLinkLocal() || 
+                 address.isMulticast() || 
+                 address.isInSubnet(new Address6("fc00::/7")) || // Unique local addresses
+                 address.isInSubnet(new Address6("fec0::/10")) || // Site-local (deprecated but might still be used)
+                 address.is4() || // IPv4-mapped or compatible
+                 address.isInSubnet(new Address6("2001:db8::/32")) // Documentation
+                ) 
+             {
+                 isPrivate = true;
+             }
+        }
+    } catch (e) {
+        logger.error({ error: e.message, ip }, "Error parsing IP address");
+        isPrivate = true; // Block on error to be safe
+    }
+
     if (isPrivate) throw new Error("Private/Local IP access forbidden.");
 
     const response = await axios.get(url, { timeout: 5000, maxRedirects: 3, responseType: "text" });

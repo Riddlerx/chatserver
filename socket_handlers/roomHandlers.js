@@ -134,7 +134,7 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
 
   socket.on("markRoomAsRead", async ({ room }) => {
     const normalizedRoom = normalizeOptionalString(room, { maxLength: 80 });
-    if (socket.username && normalizedRoom) {
+    if (socket.username && normalizedRoom && socket.room === normalizedRoom) {
       await markAsRead(io, db, socket.username, normalizedRoom, false, null, activeSessions);
     }
   });
@@ -142,7 +142,7 @@ module.exports = (io, db, socket, rooms, activeSessions) => {
   socket.on("loadMoreMessages", async ({ room, beforeTimestamp }, callback) => {
     try {
       const normalizedRoom = normalizeOptionalString(room, { maxLength: 80 });
-      if (!socket.username || !normalizedRoom) return;
+      if (!socket.username || !normalizedRoom || !socket.room || socket.room !== normalizedRoom) return;
 
       const messagesResult = await db.query(
         `SELECT m.id, m.room, m.username, m.message, m.timestamp, 

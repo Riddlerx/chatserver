@@ -21,9 +21,8 @@ module.exports = (io, db, socket) => {
 
       await messageRateLimiter.consume(socket.username || socket.handshake.address);
 
-      // Relaxed check: match the message's roomId against the resolvedRoomId
-      // and allow the message if the user is in that room.
-      if (!socket.username || (socket.room && socket.room !== resolvedRoomId)) {
+      // Require the socket to be joined to the target room before accepting messages.
+      if (!socket.username || !socket.room || socket.room !== resolvedRoomId) {
         logger.warn({
           username: socket.username,
           socketRoom: socket.room,
@@ -109,6 +108,15 @@ module.exports = (io, db, socket) => {
       const parentMessageId = normalizePositiveInt(parent_message_id);
       if (!socket.username || !parentMessageId) return;
 
+      const parentResult = await db.query(
+        "SELECT room FROM messages WHERE id = $1 AND parent_message_id IS NULL",
+        [parentMessageId]
+      );
+      const parentMessage = parentResult.rows[0];
+      if (!parentMessage || !socket.room || socket.room !== parentMessage.room) {
+        return;
+      }
+
       const result = await db.query(
         `SELECT m.id, m.room, m.username, m.message, m.timestamp, 
                 u.displayName AS "displayName", u.profilePicture AS "profilePicture", 
@@ -121,9 +129,9 @@ module.exports = (io, db, socket) => {
                 ) re) as reactions
          FROM messages m 
          LEFT JOIN users u ON m.username = u.username 
-         WHERE m.parent_message_id = $1 
+         WHERE m.parent_message_id = $1 AND m.room = $2
          ORDER BY m.timestamp ASC`,
-        [parentMessageId]
+        [parentMessageId, socket.room]
       );
 
       socket.emit("thread history", {
