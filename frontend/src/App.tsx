@@ -6,7 +6,7 @@ import Chat from './components/Chat';
 import { AnimatePresence } from 'framer-motion';
 
 function App() {
-  const { isLoggedIn, setAuth, token, theme } = useChatStore();
+  const { isLoggedIn, setAuth, theme } = useChatStore();
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
@@ -19,28 +19,23 @@ function App() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      if (token) {
         try {
           const storedUser = localStorage.getItem('user');
           const username = storedUser ? JSON.parse(storedUser).username : null;
-          if (!username) {
-            throw new Error('No stored user');
+          if (username) {
+              const response = await api.get(`/profile/${username}`);
+              setAuth(response.data);
           }
-          const response = await api.get(`/profile/${username}`);
-          setAuth(response.data, token);
         } catch (err) {
           console.error("Failed to fetch user profile", err);
-          localStorage.removeItem('chatToken');
-          localStorage.removeItem('refreshToken');
           localStorage.removeItem('user');
-          setAuth(null, null);
+          setAuth(null);
         }
-      }
       setIsInitializing(false);
     };
 
     fetchUser();
-  }, [token, setAuth]);
+  }, [setAuth]);
 
   if (isInitializing) {
     return (

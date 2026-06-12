@@ -20,22 +20,15 @@ interface ReactionsUpdatedPayload {
   reactions: ReactionSummary;
 }
 
-// Refresh the access token using the stored refresh token
-const refreshAccessToken = async (): Promise<string | null> => {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) return null;
-
+// Refresh the access token using cookies
+const refreshAccessToken = async (): Promise<boolean> => {
   const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
 
   try {
-    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-      refreshToken,
-    });
-    const { token } = response.data;
-    localStorage.setItem('chatToken', token);
-    return token;
+    await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+    return true;
   } catch {
-    return null;
+    return false;
   }
 };
 
@@ -44,7 +37,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const isRefreshingRef = useRef(false);
   const { 
-    token, 
     setOnlineUsers, 
     setRooms, 
     addMessage, 
@@ -71,11 +63,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   } = useChatStore();
 
   useEffect(() => {
-    if (isLoggedIn && token) {
+    if (isLoggedIn) {
       if (!socketRef.current) {
         const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://eain.duckdns.org';
         const nextSocket = io(BASE_URL, {
-          auth: { token },
+          withCredentials: true, // Crucial for cookie-based auth
           autoConnect: true,
         });
 
@@ -100,17 +92,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             isRefreshingRef.current = true;
             console.log('Socket auth failed, attempting token refresh...');
             
-            const newToken = await refreshAccessToken();
+            const success = await refreshAccessToken();
             isRefreshingRef.current = false;
 
-            if (newToken) {
+            if (success) {
               // Update socket auth and reconnect
-              nextSocket.auth = { token: newToken };
-              // Update the store with the new token
-              const storedUser = localStorage.getItem('user');
-              if (storedUser) {
-                useChatStore.getState().setAuth(JSON.parse(storedUser), newToken);
-              }
               nextSocket.connect();
             } else {
               // Refresh failed — force logout

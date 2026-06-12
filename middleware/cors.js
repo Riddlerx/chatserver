@@ -26,7 +26,7 @@ const corsOptions = {
     if (!origin || ALLOWED_ORIGINS.includes(origin) || (NODE_ENV === 'development' && isDevelopmentOriginAllowed(origin))) {
       callback(null, true);
     } else {
-      console.error("Blocked by CORS:", origin);
+      console.error("BLOCKED ORIGIN:", origin, "ALLOWED_ORIGINS:", ALLOWED_ORIGINS);
       callback(new Error('Not allowed by CORS'));
     }
   },

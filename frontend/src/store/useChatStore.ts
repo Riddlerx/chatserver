@@ -14,7 +14,6 @@ export interface Notification {
 interface ChatState {
   // Auth State
   user: User | null;
-  token: string | null;
   isLoggedIn: boolean;
 
   // UI State
@@ -42,7 +41,7 @@ interface ChatState {
   pinnedMessages: Message[];
 
   // Actions
-  setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => void;
+  setAuth: (user: User | null) => void;
   setTheme: (theme: 'dark' | 'light') => void;
   setCurrentRoom: (room: string) => void;
   setRooms: (rooms: Room[]) => void;
@@ -79,8 +78,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set) => ({
   // Initial State
   user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null,
-  token: localStorage.getItem('chatToken'),
-  isLoggedIn: !!localStorage.getItem('chatToken'),
+  isLoggedIn: !!localStorage.getItem('user'),
   isConnected: true,
   currentRoom: 'general',
   rooms: [],
@@ -100,19 +98,11 @@ export const useChatStore = create<ChatState>((set) => ({
 
   // Actions
   setIsConnected: (status) => set({ isConnected: status }),
-  setAuth: (user, token, refreshToken) => {
-    if (token) localStorage.setItem('chatToken', token);
-    else localStorage.removeItem('chatToken');
-    
-    if (refreshToken !== undefined) {
-      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      else localStorage.removeItem('refreshToken');
-    }
-    
+  setAuth: (user) => {
     if (user) localStorage.setItem('user', JSON.stringify(user));
     else localStorage.removeItem('user');
     
-    set({ user, token, isLoggedIn: !!user });
+    set({ user, isLoggedIn: !!user });
   },
 
   setTheme: (theme) => {

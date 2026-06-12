@@ -64,7 +64,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
       });
       updateUserProfile(targetUsername, { displayName, status });
       if (isOwnProfile && currentUser) {
-        setAuth({ ...currentUser, displayName, profilePicture: profile?.profilePicture ?? currentUser.profilePicture }, token);
+        setAuth({ ...currentUser, displayName, profilePicture: profile?.profilePicture ?? currentUser.profilePicture });
       }
       onClose();
     } catch (err) {
@@ -94,7 +94,7 @@ const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) =>
         setProfile((prev) => (prev ? { ...prev, profilePicture: response.data.filePath } : prev));
         updateUserProfile(targetUsername, { profilePicture: response.data.filePath });
         if (isOwnProfile && currentUser) {
-          setAuth({ ...currentUser, profilePicture: response.data.filePath }, token);
+          setAuth({ ...currentUser, profilePicture: response.data.filePath });
         }
       }
     } catch (err) {
