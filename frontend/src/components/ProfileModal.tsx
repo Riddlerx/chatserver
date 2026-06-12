@@ -20,7 +20,7 @@ interface ProfileData extends User {
 }
 
 const ProfileModal = ({ isOpen, onClose, targetUsername }: ProfileModalProps) => {
-  const { user: currentUser, setAuth, token, updateUserProfile } = useChatStore();
+  const { user: currentUser, setAuth, updateUserProfile } = useChatStore();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

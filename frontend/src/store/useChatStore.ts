@@ -498,6 +498,6 @@ export const useChatStore = create<ChatState>((set) => ({
     localStorage.removeItem('chatToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
-    set({ user: null, token: null, isLoggedIn: false, messages: [], rooms: [], onlineUsers: [], unreadCounts: {}, notifications: [] });
+    set({ user: null, isLoggedIn: false, messages: [], rooms: [], onlineUsers: [], unreadCounts: {}, notifications: [] });
   }
 }));
