@@ -10,6 +10,11 @@ function App() {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
+    // Initialize CSRF token on load
+    api.get('/csrf').catch(err => console.error('CSRF init failed', err));
+  }, []);
+
+  useEffect(() => {
     if (theme === 'light') {
       document.body.classList.add('light-mode');
     } else {
