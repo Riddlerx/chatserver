@@ -3,34 +3,6 @@ const jwt = require("jsonwebtoken");
 const logger = require('../logger');
 const config = require('../config');
 
-function parseAllowedOrigins(value) {
-  if (!value) {
-    return ["http://localhost:3000", "http://localhost", "http://127.0.0.1:3000", "http://127.0.0.1"];
-  }
-
-  return value
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-}
-
-function isDevelopmentOriginAllowed(origin) {
-  if (!origin) return false;
-
-  try {
-    const url = new URL(origin);
-    const hostname = url.hostname;
-
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return true;
-    }
-
-    return /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})$/.test(hostname);
-  } catch (_err) {
-    return false;
-  }
-}
-
 // Middleware for Socket.IO connection authentication
 const socketAuthMiddleware = (db, JWT_SECRET) => {
   return async (socket, next) => {

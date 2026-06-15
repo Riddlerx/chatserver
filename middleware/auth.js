@@ -9,11 +9,8 @@ module.exports = (db, JWT_SECRET) => {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith("Bearer ")) {
         token = authHeader.split(" ")[1];
-      } else if (req.headers.cookie) {
-        const match = req.headers.cookie.match(/(?:^|;\s*)token=([^;]+)/);
-        if (match) {
-          token = match[1];
-        }
+      } else if (req.cookies?.token) {
+        token = req.cookies.token;
       }
 
       if (!token) {

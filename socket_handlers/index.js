@@ -1,4 +1,4 @@
-const { broadcastUserList, broadcastUserUpdate, broadcastRoomList, emitUsersInRoom, cleanupSocket } = require("./utils");
+const { broadcastUserList, broadcastUserUpdate, broadcastRoomList, cleanupSocket } = require("./utils");
 const registerRoomHandlers = require("./roomHandlers");
 const registerMessageHandlers = require("./messageHandlers");
 const registerReactionHandlers = require("./reactionHandlers");

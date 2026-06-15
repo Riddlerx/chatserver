@@ -17,8 +17,7 @@ export function getAvatarStyle(profilePicture?: string, username?: string) {
         ? `${baseUrl}${profilePicture}`
         : `${baseUrl}/uploads/${profilePicture}`;
       
-    console.log("Avatar URL generated:", imageUrl);
-      
+
     return {
       backgroundImage: `url("${imageUrl}")`,
       backgroundSize: 'cover',

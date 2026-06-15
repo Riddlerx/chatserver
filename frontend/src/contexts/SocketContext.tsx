@@ -97,12 +97,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             });
 
         nextSocket.on('connect', () => {
-          console.log('Connected to socket');
           setIsConnected(true);
         });
 
         nextSocket.on('disconnect', () => {
-          console.log('Disconnected from socket');
           setIsConnected(false);
         });
 
@@ -115,7 +113,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           
           if (isAuthError && !isRefreshingRef.current) {
             isRefreshingRef.current = true;
-            console.log('Socket auth failed, attempting token refresh...');
             
             const success = await refreshAccessToken();
             isRefreshingRef.current = false;
@@ -126,7 +123,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               nextSocket.connect();
             } else {
               // Refresh failed — force logout
-              console.log('Token refresh failed, logging out');
               useChatStore.getState().logout();
             }
           }
