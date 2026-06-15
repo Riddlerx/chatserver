@@ -71,9 +71,9 @@ app.get('/api/socket-auth', (req, res) => {
   res.json({ token });
 });
 
-// Serve uploads from a protected directory with safe headers
-// Protected by authentication
-app.get('/uploads/:filename', authMiddleware(db, config.JWT_SECRET), async (req, res) => {
+// Serve uploads from a directory with safe headers
+// Made public because cross-origin <img> and CSS url() cannot easily send SameSite=None cookies
+app.get('/uploads/:filename', async (req, res) => {
   try {
     const filename = path.basename(req.params.filename);
     const filePath = path.join(__dirname, 'uploads', filename);
