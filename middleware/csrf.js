@@ -15,6 +15,12 @@ const csrfMiddleware = (req, res, next) => {
     return next();
   }
 
+  // Exempt auth routes (login, register) from CSRF protection
+  // These endpoints don't access authenticated resources
+  if (req.path === '/api/auth/login' || req.path === '/api/auth/register') {
+    return next();
+  }
+
   // For state-changing methods, validate the token
   const clientToken = req.headers['x-xsrf-token'];
   const cookieToken = req.cookies['XSRF-TOKEN'];
