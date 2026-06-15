@@ -97,7 +97,7 @@ module.exports = (db) => {
       res.cookie('token', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax', // Changed from 'none' to 'lax'
+        sameSite: 'none',
         maxAge: 3600000 // 1 hour
       });
 
@@ -122,7 +122,7 @@ module.exports = (db) => {
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000
       });
 
@@ -163,14 +163,14 @@ module.exports = (db) => {
       // Check if user is banned
       if (tokenRecord.banned_username) {
         await db.query('DELETE FROM refresh_tokens WHERE username = $1', [tokenRecord.username]);
-        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'lax' });
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
         return res.status(403).json({ error: "Your account has been banned" });
       }
 
       // Check if token is expired
       if (new Date(tokenRecord.expires_at) < new Date()) {
         await db.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'lax' });
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
         return res.status(401).json({ error: "Refresh token expired" });
       }
 
@@ -183,7 +183,7 @@ module.exports = (db) => {
 
       if (!user) {
         await db.query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
-        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'lax' });
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
         return res.status(401).json({ error: "User not found" });
       }
 
@@ -203,7 +203,7 @@ module.exports = (db) => {
       res.cookie('token', newToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: 3600000 // 1 hour
       });
 
@@ -235,8 +235,8 @@ module.exports = (db) => {
     }
 
     // Clear both auth cookies
-    res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'lax' });
-    res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'lax' });
+    res.clearCookie('token', { httpOnly: true, secure: true, sameSite: 'none' });
+    res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none' });
 
     res.json({ success: true });
   });

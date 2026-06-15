@@ -9,7 +9,7 @@ const csrfMiddleware = (req, res, next) => {
       res.cookie('XSRF-TOKEN', token, {
         httpOnly: false, // Must be false so frontend can read it
         secure: true,
-        sameSite: 'lax',
+        sameSite: 'none',
       });
     }
     return next();

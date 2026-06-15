@@ -54,7 +54,7 @@ app.get('/api/csrf', (req, res) => {
   res.cookie('XSRF-TOKEN', token, {
     httpOnly: false,
     secure: true,
-    sameSite: 'lax',
+    sameSite: 'none',
   });
   res.json({ success: true, token });
 });
