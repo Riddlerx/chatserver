@@ -44,6 +44,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// CSRF Protection
+const csrfMiddleware = require('./middleware/csrf');
+app.use(csrfMiddleware);
+
 // Serve uploads from a protected directory with safe headers
 // Protected by authentication
 app.get('/uploads/:filename', authMiddleware(db, config.JWT_SECRET), async (req, res) => {

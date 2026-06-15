@@ -5,6 +5,8 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org'
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // Required to send HttpOnly cookies
+  xsrfCookieName: 'XSRF-TOKEN', // Name of the cookie sent by server
+  xsrfHeaderName: 'X-XSRF-TOKEN', // Name of the header axios sends
 });
 
 // Intercept 401/403 responses — attempt token refresh and retry

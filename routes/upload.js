@@ -90,31 +90,6 @@ router.post("/", async (req, res) => {
          }
       }
  
-      // Extra safety: scan file bytes for PHP tags or obvious PHP webshell patterns
-      try {
-        const fileBuf = fs.readFileSync(req.file.path);
-        const phpTag = Buffer.from('<?php');
-        const shortTag = Buffer.from('<?');
-        const echoTag = Buffer.from('<?=');
-        const hasPhp = fileBuf.indexOf(phpTag) !== -1 || fileBuf.indexOf(echoTag) !== -1 || fileBuf.indexOf(shortTag) !== -1;
-
-        if (hasPhp) {
-          // Quarantine the suspicious file for forensics rather than leaving it in uploads
-          const quarantineDir = path.join(uploadDirectory, 'quarantine');
-          fs.mkdirSync(quarantineDir, { recursive: true });
-          const qname = req.file.filename + (ext || path.extname(req.file.originalname).toLowerCase()) + '.' + Date.now();
-          const qpath = path.join(quarantineDir, qname);
-          fs.renameSync(req.file.path, qpath);
-          // Log and return error
-          console.warn(`Quarantined suspicious upload: ${qpath}`);
-          return res.status(400).json({ error: 'Uploaded file contained disallowed content and was quarantined.' });
-        }
-      } catch (scanErr) {
-        // On any scan error, remove the file and fail closed
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
-        return res.status(500).json({ error: 'Error scanning uploaded file.' });
-      }
-
       // Re-encode images to a canonical format to strip metadata and remove polyglot payloads
       try {
         const sharp = require('sharp');
