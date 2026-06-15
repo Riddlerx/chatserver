@@ -26,6 +26,7 @@ const securityMiddleware = (app) => {
       },
     },
     crossOriginOpenerPolicy: { policy: "unsafe-none" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
     originAgentCluster: false,
     hsts: false,
   }));
