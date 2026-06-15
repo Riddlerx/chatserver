@@ -17,7 +17,12 @@ const csrfMiddleware = (req, res, next) => {
 
   // Exempt auth routes (login, register) from CSRF protection
   // These endpoints don't access authenticated resources
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/register' || req.path === '/api/auth/logout') {
+  if (
+    req.path === '/api/auth/login' ||
+    req.path === '/api/auth/register' ||
+    req.path === '/api/auth/logout' ||
+    req.path === '/api/auth/refresh'
+  ) {
     return next();
   }
 

@@ -226,15 +226,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
         
         connect();
-      } else {
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-          setSocket(null);
-        }
+      }
+    } else {
+      // User logged out — disconnect the socket
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
       }
     }
-  }, [isLoggedIn, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions, removeMessage, removeDMMessage, updateMessage, updateDMMessage, setPinnedMessages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
 
         // Handle Room Joining on connect or room change
         useEffect(() => {
