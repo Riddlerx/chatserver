@@ -59,6 +59,18 @@ app.get('/api/csrf', (req, res) => {
   res.json({ success: true });
 });
 
+// Endpoint for Socket.IO authentication — returns JWT token for Socket.IO connection
+app.get('/api/socket-auth', (req, res) => {
+  // Check if the user has a valid JWT token in cookies
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).json({ error: 'No authentication token found' });
+  }
+  
+  // Send the token to the frontend for Socket.IO connection
+  res.json({ token });
+});
+
 // Serve uploads from a protected directory with safe headers
 // Protected by authentication
 app.get('/uploads/:filename', authMiddleware(db, config.JWT_SECRET), async (req, res) => {

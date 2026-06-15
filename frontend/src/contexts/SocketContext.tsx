@@ -66,10 +66,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (isLoggedIn) {
       if (!socketRef.current) {
         const BASE_URL = import.meta.env.VITE_BASE_URL || 'https://eain.duckdns.org';
-        const nextSocket = io(BASE_URL, {
-          withCredentials: true, // Crucial for cookie-based auth
-          autoConnect: true,
-        });
+        
+        const connect = async () => {
+          try {
+            // Fetch Socket.IO auth token from backend
+            const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
+            const response = await axios.get(`${API_BASE_URL}/socket-auth`, { withCredentials: true });
+            const token = response.data.token;
+            
+            const nextSocket = io(BASE_URL, {
+              auth: { token },
+              withCredentials: true,
+              autoConnect: true,
+            });
 
         nextSocket.on('connect', () => {
           console.log('Connected to socket');
@@ -194,15 +203,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         socketRef.current = nextSocket;
         setSocket(nextSocket);
-        }
-        } else {
+          } catch (error) {
+            console.error('Failed to connect to Socket.IO:', error);
+          }
+        };
+        
+        connect();
+      } else {
         if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-        setSocket(null);
+          socketRef.current.disconnect();
+          socketRef.current = null;
+          setSocket(null);
         }
-        }
-        }, [isLoggedIn, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions, removeMessage, removeDMMessage, updateMessage, updateDMMessage, setPinnedMessages]);
+      }
+    }
+  }, [isLoggedIn, setOnlineUsers, setRooms, addMessage, setMessages, addThreadMessage, setThreadMessages, addDMMessage, setDMHistory, prependMessages, prependDMMessages, setDMRead, setUnreadCounts, updateUserProfile, updateMessageReactions, removeMessage, removeDMMessage, updateMessage, updateDMMessage, setPinnedMessages]);
 
         // Handle Room Joining on connect or room change
         useEffect(() => {

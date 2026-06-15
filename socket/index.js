@@ -35,20 +35,30 @@ function isDevelopmentOriginAllowed(origin) {
 const socketAuthMiddleware = (db, JWT_SECRET) => {
   return async (socket, next) => {
     let token = socket.handshake.auth?.token;
-    logger.info({ cookieHeader: socket.handshake.headers.cookie, token }, "Socket Auth Attempt");
     
-    // Fallback to cookie if token is not in auth payload
-    if (!token && socket.handshake.headers.cookie) {
-      const cookieHeader = socket.handshake.headers.cookie;
-      const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
-      if (match) {
-        token = match[1];
-        logger.info("Token extracted from cookie");
+    // Try multiple sources to find the token
+    // 1. Check handshake auth payload
+    if (!token) {
+      // 2. Try to extract from handshake headers
+      const cookieHeader = socket.handshake.headers?.cookie;
+      if (cookieHeader) {
+        const match = cookieHeader.match(/(?:^|;\s*)token=([^;]+)/);
+        if (match) {
+          token = match[1];
+        }
       }
     }
-
+    
+    // 3. Try socket.request headers as fallback
+    if (!token && socket.request?.headers?.cookie) {
+      const match = socket.request.headers.cookie.match(/(?:^|;\s*)token=([^;]+)/);
+      if (match) {
+        token = match[1];
+      }
+    }
+    
     if (!token) {
-      logger.error("Authentication token is missing in socket connection.");
+      logger.error("Authentication token is missing in socket connection");
       return next(new Error("Authentication token is missing."));
     }
 
@@ -68,9 +78,9 @@ const socketAuthMiddleware = (db, JWT_SECRET) => {
       
       socket.username = user.username;
       socket.displayName = user.displayName || user.username;
-      socket.profilePicture = user.profilePicture || null; // No default image path
+      socket.profilePicture = user.profilePicture || null;
       socket.role = user.role || "user";
-      socket.status = user.status || "online"; // Default status
+      socket.status = user.status || "online";
       
       next();
     } catch (err) {
@@ -111,8 +121,13 @@ module.exports = (server, db, rooms, activeSessions) => {
               callback(new Error('Not allowed by CORS'));
           },
           methods: ["GET", "POST"],
-          credentials: true
+          credentials: true,
+          allowRequest: (req, callback) => {
+              // Allow cross-origin requests with credentials
+              callback(null, true);
+          }
       },
+      transports: ['websocket', 'polling'],
   });
 
   // Apply Socket.IO authentication middleware
