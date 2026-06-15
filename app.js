@@ -2,6 +2,13 @@ const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const logger = require('./logger');
+const fs = require('fs');
+
+// Move import to top for performance
+let fileType;
+import('file-type').then(module => {
+    fileType = module;
+});
 
 const config = require('./config');
 const securityMiddleware = require('./middleware/security');
@@ -36,6 +43,28 @@ app.use(cors);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Serve uploads from a protected directory with safe headers
+// Protected by authentication
+app.get('/uploads/:filename', authMiddleware(db, config.JWT_SECRET), async (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(__dirname, 'uploads', filename);
+    if (!fs.existsSync(filePath)) return res.status(404).end();
+
+    // Use pre-loaded fileType module
+    const type = await fileType.fileTypeFromFile(filePath);
+    const mime = type?.mime || 'application/octet-stream';
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    return res.sendFile(filePath);
+  } catch (err) {
+    logger.error({ err }, 'Error serving uploaded file');
+    return res.status(500).end();
+  }
+});
 
 // Public folder for static files
 app.use(express.static(path.join(__dirname, 'public')));

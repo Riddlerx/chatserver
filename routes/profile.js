@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { body, validationResult } = require('express-validator');
+const validate = require('../middleware/validate');
+const Joi = require('joi');
 const logger = require('../logger');
 const { broadcastUserList, emitUsersInRoom } = require('../socket_handlers/utils');
 
@@ -28,6 +29,20 @@ function isSafeMediaUrl(value) {
     return false;
   }
 }
+
+const profileUpdateSchema = Joi.object({
+  displayName: Joi.string().min(1).max(50).optional(),
+  bio: Joi.string().max(500).optional(),
+  status: Joi.string().max(120).optional(),
+  profilePicture: Joi.string().optional().custom((value, helpers) => {
+    if (!isSafeMediaUrl(value)) return helpers.error('any.invalid');
+    return value;
+  }).messages({ 'any.invalid': 'Profile picture must be an http(s) URL or uploaded file path.' }),
+  background: Joi.string().optional().custom((value, helpers) => {
+    if (!isSafeMediaUrl(value)) return helpers.error('any.invalid');
+    return value;
+  }).messages({ 'any.invalid': 'Background must be an http(s) URL or uploaded file path.' }),
+});
 
 module.exports = (db) => {
   // Endpoint to search users
@@ -74,19 +89,9 @@ module.exports = (db) => {
   });
 
   // Endpoint to update user profile
-  router.post("/:username", 
-    body('displayName').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Display name must be 1-50 characters long.'),
-    body('bio').optional().trim().isLength({ max: 500 }).withMessage('Bio must be 500 characters or fewer.'),
-    body('status').optional().trim().isLength({ max: 120 }).withMessage('Status must be 120 characters or fewer.'),
-    body('profilePicture').optional().custom(isSafeMediaUrl).withMessage('Profile picture must be an http(s) URL or uploaded file path.'),
-    body('background').optional().custom(isSafeMediaUrl).withMessage('Background must be an http(s) URL or uploaded file path.'),
-    async (req, res) => {
+  router.post("/:username", validate(profileUpdateSchema), async (req, res) => {
     const { username } = req.params;
-    const { displayName, profilePicture, bio, status, background } = req.body;
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    const { displayName, profilePicture, bio, status, background } = req.validated;
 
     // Ensure user is either the owner of the profile or an admin
     if (req.user.username !== username && req.user.role !== 'admin') {

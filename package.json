@@ -12,6 +12,8 @@
     "hpp": "^0.2.3",
     "ip-address": "^10.2.0",
     "ip-regex": "^5.0.0",
+    "joi": "^17.9.2",
+    "sharp": "^0.32.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
     "node-html-parser": "^7.1.0",
@@ -21,6 +23,9 @@
     "rate-limiter-flexible": "^11.0.1",
     "sanitize-html": "^2.17.3",
     "socket.io": "^4.8.3"
+  },
+  "overrides": {
+    "shell-quote": "1.8.4"
   },
   "scripts": {
     "start": "node server.js",
@@ -34,7 +39,7 @@
     "init-pg-db": "node db/pg_init.js"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
+    "concurrently": "^9.2.0",
     "eslint": "^10.3.0",
     "jest": "^30.4.2",
     "supertest": "^7.2.2"

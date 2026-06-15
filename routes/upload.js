@@ -18,7 +18,7 @@ const allowedMimeTypes = new Set([
 ]);
 const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".pdf", ".mp4", ".webm", ".mp3", ".wav"]);
 
-const uploadDirectory = path.join(__dirname, "..", "public", "uploads");
+const uploadDirectory = path.join(__dirname, "..", "uploads");
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
 // Set up storage for uploaded files
@@ -88,6 +88,64 @@ router.post("/", async (req, res) => {
              fs.unlinkSync(req.file.path); // Delete the invalid file
              return res.status(400).json({ error: "Invalid file type." });
          }
+      }
+ 
+      // Extra safety: scan file bytes for PHP tags or obvious PHP webshell patterns
+      try {
+        const fileBuf = fs.readFileSync(req.file.path);
+        const phpTag = Buffer.from('<?php');
+        const shortTag = Buffer.from('<?');
+        const echoTag = Buffer.from('<?=');
+        const hasPhp = fileBuf.indexOf(phpTag) !== -1 || fileBuf.indexOf(echoTag) !== -1 || fileBuf.indexOf(shortTag) !== -1;
+
+        if (hasPhp) {
+          // Quarantine the suspicious file for forensics rather than leaving it in uploads
+          const quarantineDir = path.join(uploadDirectory, 'quarantine');
+          fs.mkdirSync(quarantineDir, { recursive: true });
+          const qname = req.file.filename + (ext || path.extname(req.file.originalname).toLowerCase()) + '.' + Date.now();
+          const qpath = path.join(quarantineDir, qname);
+          fs.renameSync(req.file.path, qpath);
+          // Log and return error
+          console.warn(`Quarantined suspicious upload: ${qpath}`);
+          return res.status(400).json({ error: 'Uploaded file contained disallowed content and was quarantined.' });
+        }
+      } catch (scanErr) {
+        // On any scan error, remove the file and fail closed
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        return res.status(500).json({ error: 'Error scanning uploaded file.' });
+      }
+
+      // Re-encode images to a canonical format to strip metadata and remove polyglot payloads
+      try {
+        const sharp = require('sharp');
+        if (fileType && fileType.mime && fileType.mime.startsWith('image/')) {
+          // Handle GIFs: reject animated GIFs to be safe
+          if (fileType.ext === 'gif') {
+            // Quarantine GIFs (or optionally create a static thumbnail)
+            const quarantineDir = path.join(uploadDirectory, 'quarantine');
+            fs.mkdirSync(quarantineDir, { recursive: true });
+            const qname = req.file.filename + (ext || '.gif') + '.' + Date.now();
+            const qpath = path.join(quarantineDir, qname);
+            fs.renameSync(req.file.path, qpath);
+            console.warn(`Quarantined GIF upload (animated/unsupported): ${qpath}`);
+            return res.status(400).json({ error: 'Animated GIFs are not supported. Upload a static image.' });
+          }
+
+          // Re-encode to JPEG (canonical) to strip metadata and normalize bytes
+          const tmpOut = req.file.path + '.reencoded';
+          await sharp(req.file.path).rotate().jpeg({ quality: 85 }).toFile(tmpOut);
+          // Replace original file with re-encoded output
+          fs.unlinkSync(req.file.path);
+          fs.renameSync(tmpOut, req.file.path);
+
+          // Force extension to .jpg
+          ext = '.jpg';
+        }
+      } catch (reErr) {
+        // If re-encoding fails, remove file and fail closed
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        console.error('Image re-encoding failed', reErr);
+        return res.status(500).json({ error: 'Failed to process image upload.' });
       }
 
       const newFilename = req.file.filename + ext;

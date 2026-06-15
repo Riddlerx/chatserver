@@ -3,7 +3,8 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
-const { body, validationResult } = require('express-validator');
+const validate = require('../middleware/validate');
+const Joi = require('joi');
 const logger = require('../logger');
 const config = require('../config');
 
@@ -14,32 +15,23 @@ const generateRefreshToken = () => {
   return crypto.randomBytes(64).toString('hex');
 };
 
-const registerValidationRules = [
-  body('username')
-    .trim()
-    .isLength({ min: 3, max: 30 })
-    .matches(/^[A-Za-z0-9_]+$/)
-    .withMessage('Username must be 3-30 characters and contain only letters, numbers, and underscores.'),
-  body('password').isLength({ min: 8, max: 128 }).withMessage('Password must be 8-128 characters long.'),
-  body('displayName').optional().trim().isLength({ min: 1, max: 50 }).withMessage('Display name must be 1-50 characters long.'),
-];
+const registerSchema = Joi.object({
+  username: Joi.string().min(3).max(30).pattern(/^[A-Za-z0-9_]+$/).required().messages({ 'string.pattern.base': 'Username must be 3-30 characters and contain only letters, numbers, and underscores.' }),
+  password: Joi.string().min(8).max(128).required(),
+  displayName: Joi.string().min(1).max(50).optional(),
+});
 
-const loginValidationRules = [
-  body('username').trim().isLength({ min: 3, max: 30 }).withMessage('Username must be 3-30 characters long.'),
-  body('password').isLength({ min: 4, max: 128 }).withMessage('Password must be 4-128 characters long.'),
-];
+const loginSchema = Joi.object({
+  username: Joi.string().min(3).max(30).required(),
+  password: Joi.string().min(4).max(128).required(),
+});
 
 module.exports = (db) => {
   // Register endpoint
-  router.post("/register", registerValidationRules, async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const username = req.body.username.trim();
-    const { password } = req.body;
-    const displayName = req.body.displayName ? req.body.displayName.trim() : undefined;
+  router.post("/register", validate(registerSchema), async (req, res) => {
+    const { username: rawUsername, password, displayName: rawDisplayName } = req.validated;
+    const username = rawUsername.trim();
+    const displayName = rawDisplayName ? rawDisplayName.trim() : undefined;
 
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -58,14 +50,9 @@ module.exports = (db) => {
   });
 
   // Login endpoint
-  router.post("/login", loginValidationRules, async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const username = req.body.username.trim();
-    const { password } = req.body;
+  router.post("/login", validate(loginSchema), async (req, res) => {
+    const { username: rawUsername, password } = req.validated;
+    const username = rawUsername.trim();
 
     try {
       const bannedResult = await db.query("SELECT * FROM banned_users WHERE username = $1", [username]);
