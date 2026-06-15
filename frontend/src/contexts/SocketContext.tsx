@@ -32,6 +32,12 @@ const refreshAccessToken = async (): Promise<boolean> => {
   }
 };
 
+const getSocketAuthToken = async (): Promise<string> => {
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
+  const response = await axios.get(`${API_BASE_URL}/socket-auth`, { withCredentials: true });
+  return response.data.token;
+};
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -69,10 +75,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         const connect = async () => {
           try {
-            // Fetch Socket.IO auth token from backend
-            const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
-            const response = await axios.get(`${API_BASE_URL}/socket-auth`, { withCredentials: true });
-            const token = response.data.token;
+            let token: string;
+
+            try {
+              token = await getSocketAuthToken();
+            } catch (error: any) {
+              if (error.response?.status !== 401 && error.response?.status !== 403) {
+                throw error;
+              }
+
+              const refreshed = await refreshAccessToken();
+              if (!refreshed) {
+                useChatStore.getState().logout();
+                return;
+              }
+
+              token = await getSocketAuthToken();
+            }
             
             const nextSocket = io(BASE_URL, {
               auth: { token },
@@ -105,7 +124,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             isRefreshingRef.current = false;
 
             if (success) {
-              // Update socket auth and reconnect
+              const token = await getSocketAuthToken();
+              nextSocket.auth = { token };
               nextSocket.connect();
             } else {
               // Refresh failed — force logout
