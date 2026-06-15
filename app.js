@@ -50,13 +50,13 @@ app.use(csrfMiddleware);
 
 // Endpoint for frontend to initialize CSRF token
 app.get('/api/csrf', (req, res) => {
-  const token = require('crypto').randomBytes(32).toString('hex');
+  const token = req.cookies['XSRF-TOKEN'] || require('crypto').randomBytes(32).toString('hex');
   res.cookie('XSRF-TOKEN', token, {
     httpOnly: false,
     secure: true,
     sameSite: 'lax',
   });
-  res.json({ success: true });
+  res.json({ success: true, token });
 });
 
 // Endpoint for Socket.IO authentication — returns JWT token for Socket.IO connection

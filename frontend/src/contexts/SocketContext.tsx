@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import axios from 'axios';
+import api from '../api';
 import { useChatStore } from '../store/useChatStore';
 import type { Message, Room, User } from '../types/chatTypes';
 import { SocketContext } from './chatSocketContext';
@@ -22,10 +22,8 @@ interface ReactionsUpdatedPayload {
 
 // Refresh the access token using cookies
 const refreshAccessToken = async (): Promise<boolean> => {
-  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
-
   try {
-    await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+    await api.post('/auth/refresh', {});
     return true;
   } catch {
     return false;
@@ -33,8 +31,7 @@ const refreshAccessToken = async (): Promise<boolean> => {
 };
 
 const getSocketAuthToken = async (): Promise<string> => {
-  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
-  const response = await axios.get(`${API_BASE_URL}/socket-auth`, { withCredentials: true });
+  const response = await api.get('/socket-auth');
   return response.data.token;
 };
 

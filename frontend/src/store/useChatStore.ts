@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { User, Message, Room, Reaction } from '../types/chatTypes';
+import api from '../api';
 
 export interface Notification {
   id: string;
@@ -486,11 +487,9 @@ export const useChatStore = create<ChatState>((set) => ({
 
   logout: () => {
     // Call logout API to clear cookies server-side (fire and forget)
-    const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://eain.duckdns.org') + '/api';
-    fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include', // Send cookies so server can clear them
-    }).catch(() => {}); // Fire and forget
+    api.get('/csrf')
+      .then(() => api.post('/auth/logout', {}))
+      .catch(() => {});
     localStorage.removeItem('user');
     set({ user: null, isLoggedIn: false, messages: [], rooms: [], onlineUsers: [], unreadCounts: {}, notifications: [] });
   }
