@@ -72,23 +72,15 @@ router.post("/", async (req, res) => {
     }
 
     // Securely determine the file extension based on content using file-type
-    try {
-      const fileTypeModule = await import("file-type");
-      const fileType = await fileTypeModule.fileTypeFromFile(req.file.path);
-      
-      let ext = "";
-      if (fileType && allowedMimeTypes.has(fileType.mime) && allowedExtensions.has(`.${fileType.ext}`)) {
-         ext = `.${fileType.ext}`;
-      } else {
-         // Fallback if file-type cannot determine, but multer allowed it (e.g. some PDFs might be tricky, though file-type handles them well)
-         const originalExt = path.extname(req.file.originalname).toLowerCase();
-         if (allowedExtensions.has(originalExt)) {
-             ext = originalExt;
-         } else {
-             fs.unlinkSync(req.file.path); // Delete the invalid file
-             return res.status(400).json({ error: "Invalid file type." });
-         }
-      }
+    const fileTypeModule = await import("file-type");
+    const fileType = await fileTypeModule.fileTypeFromFile(req.file.path);
+
+    if (!fileType || !allowedMimeTypes.has(fileType.mime) || !allowedExtensions.has(`.${fileType.ext}`)) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Invalid or unsupported file content." });
+    }
+
+    let ext = `.${fileType.ext}`;
  
       // Re-encode images to a canonical format to strip metadata and remove polyglot payloads
       try {
