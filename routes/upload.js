@@ -71,17 +71,18 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Please select a file." });
     }
 
-    // Securely determine the file extension based on content using file-type
-    const fileTypeModule = await import("file-type");
-    const fileType = await fileTypeModule.fileTypeFromFile(req.file.path);
+    try {
+      // Securely determine the file extension based on content using file-type
+      const fileTypeModule = await import("file-type");
+      const fileType = await fileTypeModule.fileTypeFromFile(req.file.path);
 
-    if (!fileType || !allowedMimeTypes.has(fileType.mime) || !allowedExtensions.has(`.${fileType.ext}`)) {
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ error: "Invalid or unsupported file content." });
-    }
+      if (!fileType || !allowedMimeTypes.has(fileType.mime) || !allowedExtensions.has(`.${fileType.ext}`)) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: "Invalid or unsupported file content." });
+      }
 
-    let ext = `.${fileType.ext}`;
- 
+      let ext = `.${fileType.ext}`;
+  
       // Re-encode images to a canonical format to strip metadata and remove polyglot payloads
       try {
         const sharp = require('sharp');
@@ -121,7 +122,7 @@ router.post("/", async (req, res) => {
 
       return res.json({ filePath: `/uploads/${newFilename}` });
     } catch (error) {
-      fs.unlinkSync(req.file.path); // Delete on error
+      try { fs.unlinkSync(req.file.path); } catch (_) {} // Delete on error safely
       return res.status(500).json({ error: "Error processing uploaded file." });
     }
   });
