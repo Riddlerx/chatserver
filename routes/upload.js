@@ -87,27 +87,31 @@ router.post("/", async (req, res) => {
       try {
         const sharp = require('sharp');
         if (fileType && fileType.mime && fileType.mime.startsWith('image/')) {
-          // Handle GIFs: reject animated GIFs to be safe
+          const tmpOut = req.file.path + '.reencoded';
+
           if (fileType.ext === 'gif') {
-            // Quarantine GIFs (or optionally create a static thumbnail)
-            const quarantineDir = path.join(uploadDirectory, 'quarantine');
-            fs.mkdirSync(quarantineDir, { recursive: true });
-            const qname = req.file.filename + (ext || '.gif') + '.' + Date.now();
-            const qpath = path.join(quarantineDir, qname);
-            fs.renameSync(req.file.path, qpath);
-            console.warn(`Quarantined GIF upload (animated/unsupported): ${qpath}`);
-            return res.status(400).json({ error: 'Animated GIFs are not supported. Upload a static image.' });
+            // Check if animated (pages > 1)
+            const meta = await sharp(req.file.path, { animated: false }).metadata();
+            const isAnimated = (meta.pages || 1) > 1;
+
+            if (isAnimated) {
+              // Re-encode animated GIF through sharp to strip polyglot payloads while preserving animation
+              await sharp(req.file.path, { animated: true }).gif().toFile(tmpOut);
+              ext = '.gif';
+            } else {
+              // Static GIF → re-encode to JPEG
+              await sharp(req.file.path).rotate().jpeg({ quality: 85 }).toFile(tmpOut);
+              ext = '.jpg';
+            }
+          } else {
+            // Re-encode non-GIF images to JPEG to strip metadata and normalize bytes
+            await sharp(req.file.path).rotate().jpeg({ quality: 85 }).toFile(tmpOut);
+            ext = '.jpg';
           }
 
-          // Re-encode to JPEG (canonical) to strip metadata and normalize bytes
-          const tmpOut = req.file.path + '.reencoded';
-          await sharp(req.file.path).rotate().jpeg({ quality: 85 }).toFile(tmpOut);
           // Replace original file with re-encoded output
           fs.unlinkSync(req.file.path);
           fs.renameSync(tmpOut, req.file.path);
-
-          // Force extension to .jpg
-          ext = '.jpg';
         }
       } catch (reErr) {
         // If re-encoding fails, remove file and fail closed
