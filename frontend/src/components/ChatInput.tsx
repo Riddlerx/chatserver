@@ -44,35 +44,35 @@ const ChatInput = ({ parentMessageId }: ChatInputProps = {}) => {
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!text.trim() && !previewImage) return;
-    
-    let messageToSend = text.trim();
-    
-    if (previewImage && !messageToSend) {
-        messageToSend = previewImage;
-    } else if (previewImage) {
-        if (currentDMUser) {
-          sendDM(currentDMUser, previewImage);
-        } else {
-          sendMessage(previewImage, currentRoom, parentMessageId);
-        }
+
+    const messageToSend = text.trim();
+
+    // Always send the image/GIF if one is attached
+    if (previewImage) {
+      if (currentDMUser) {
+        sendDM(currentDMUser, previewImage);
+      } else {
+        sendMessage(previewImage, currentRoom, parentMessageId);
+      }
     }
-    
-    if (messageToSend && messageToSend !== previewImage) {
-        if (currentDMUser) {
-          sendDM(currentDMUser, messageToSend);
-        } else {
-          sendMessage(messageToSend, currentRoom, parentMessageId);
-        }
+
+    // Send text as a separate message if there is any
+    if (messageToSend) {
+      if (currentDMUser) {
+        sendDM(currentDMUser, messageToSend);
+      } else {
+        sendMessage(messageToSend, currentRoom, parentMessageId);
+      }
     }
-    
+
     setText('');
     setPreviewImage(null);
     setShowEmojiPicker(false);
     setShowGifPicker(false);
     textInputRef.current?.focus();
-    
+
     if (socket) {
-        socket.emit('stop typing');
+      socket.emit('stop typing');
     }
   };
 
