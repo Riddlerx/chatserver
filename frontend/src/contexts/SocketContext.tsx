@@ -39,6 +39,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const socketRef = useRef<Socket | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const isRefreshingRef = useRef(false);
+  const roomReadyRef = useRef(false); // true once server confirms joinRoom
   const { 
     setOnlineUsers, 
     setRooms, 
@@ -242,7 +243,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               socket.emit('get dm history', { withUser: currentDMUser });
               socket.emit('markDMAsRead', { withUser: currentDMUser });
             } else if (currentRoom) {
-              socket.emit('joinRoom', { room: currentRoom });
+              roomReadyRef.current = false; // reset until server confirms
+              socket.emit('joinRoom', { room: currentRoom }, (ack: { success: boolean }) => {
+                if (ack?.success) {
+                  roomReadyRef.current = true;
+                }
+              });
               socket.emit('markRoomAsRead', { room: currentRoom });
             }
           }
@@ -265,6 +271,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     addMessage(optimisticMessage);
 
+    // Don't send if server hasn't confirmed room join yet
+    if (!roomReadyRef.current) {
+      useChatStore.setState({
+        messages: useChatStore.getState().messages.map((m): Message =>
+          m.id === optimisticMessage.id ? { ...m, status: 'error' as const } : m
+        )
+      });
+      return;
+    }
+
     socketRef.current?.emit('sendMessage', { message, roomId, parentMessageId }, (response?: SocketAckResponse) => {
       if (!response || !response.success) {
         const updatedMessages = useChatStore.getState().messages.map((m): Message =>
@@ -276,7 +292,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const joinRoom = (room: string, password?: string) => {
-    socketRef.current?.emit('joinRoom', { room, password });
+    roomReadyRef.current = false;
+    socketRef.current?.emit('joinRoom', { room, password }, (ack: { success: boolean }) => {
+      if (ack?.success) {
+        roomReadyRef.current = true;
+      }
+    });
     socketRef.current?.emit('markRoomAsRead', { room });
   };
 
