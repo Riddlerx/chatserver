@@ -236,21 +236,35 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isLoggedIn]);
 
 
-        // Handle Room Joining on connect or room change
+        // Handle Room Joining on connect or room change, including reconnect events
         useEffect(() => {
           if (socket) {
-            if (currentDMUser) {
-              socket.emit('get dm history', { withUser: currentDMUser });
-              socket.emit('markDMAsRead', { withUser: currentDMUser });
-            } else if (currentRoom) {
-              roomReadyRef.current = false; // reset until server confirms
-              socket.emit('joinRoom', { room: currentRoom }, (ack: { success: boolean }) => {
-                if (ack?.success) {
-                  roomReadyRef.current = true;
-                }
-              });
-              socket.emit('markRoomAsRead', { room: currentRoom });
+            const handleConnect = () => {
+              if (currentDMUser) {
+                socket.emit('get dm history', { withUser: currentDMUser });
+                socket.emit('markDMAsRead', { withUser: currentDMUser });
+              } else if (currentRoom) {
+                roomReadyRef.current = false; // reset until server confirms
+                socket.emit('joinRoom', { room: currentRoom }, (ack: { success: boolean }) => {
+                  if (ack?.success) {
+                    roomReadyRef.current = true;
+                  }
+                });
+                socket.emit('markRoomAsRead', { room: currentRoom });
+              }
+            };
+
+            // Run immediately if already connected
+            if (socket.connected) {
+              handleConnect();
             }
+
+            // Listen for reconnect/connect events to re-join and update state
+            socket.on('connect', handleConnect);
+
+            return () => {
+              socket.off('connect', handleConnect);
+            };
           }
         }, [socket, currentRoom, currentDMUser]);
   const sendMessage = (message: string, roomId: string, parentMessageId?: number | null) => {

@@ -3,6 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
+const logger = require("../logger");
 const router = express.Router();
 const allowedMimeTypes = new Set([
   "image/jpeg",
@@ -126,6 +127,7 @@ router.post("/", async (req, res) => {
 
       return res.json({ filePath: `/uploads/${newFilename}` });
     } catch (error) {
+      logger.error({ err: error }, "Error processing uploaded file");
       try { fs.unlinkSync(req.file.path); } catch (_) {} // Delete on error safely
       return res.status(500).json({ error: "Error processing uploaded file." });
     }
